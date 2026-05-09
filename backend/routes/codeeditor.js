@@ -166,3 +166,63 @@ router.get('/git/log', ...adminOnly, (req, res) => {
     res.json({ commits });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
+
+// Create a new file
+router.post('/file/:side/create', ...adminOnly, (req, res) => {
+  try {
+    const root = req.params.side === 'frontend' ? FRONTEND_ROOT : BACKEND_ROOT;
+    const { filePath, content = '' } = req.body;
+    if (!filePath) return res.status(400).json({ error: 'filePath required' });
+    const full = safePath(root, filePath);
+    if (fs.existsSync(full)) return res.status(400).json({ error: 'File already exists' });
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, content, 'utf8');
+    res.json({ message: 'File created', path: filePath });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// Create a new folder
+router.post('/folder/:side/create', ...adminOnly, (req, res) => {
+  try {
+    const root = req.params.side === 'frontend' ? FRONTEND_ROOT : BACKEND_ROOT;
+    const { folderPath } = req.body;
+    if (!folderPath) return res.status(400).json({ error: 'folderPath required' });
+    const full = safePath(root, folderPath);
+    fs.mkdirSync(full, { recursive: true });
+    res.json({ message: 'Folder created', path: folderPath });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// Rename file or folder
+router.post('/rename/:side', ...adminOnly, (req, res) => {
+  try {
+    const root = req.params.side === 'frontend' ? FRONTEND_ROOT : BACKEND_ROOT;
+    const { oldPath, newPath } = req.body;
+    if (!oldPath || !newPath) return res.status(400).json({ error: 'oldPath and newPath required' });
+    const oldFull = safePath(root, oldPath);
+    const newFull = safePath(root, newPath);
+    if (!fs.existsSync(oldFull)) return res.status(404).json({ error: 'File not found' });
+    if (fs.existsSync(newFull)) return res.status(400).json({ error: 'Target already exists' });
+    fs.mkdirSync(path.dirname(newFull), { recursive: true });
+    fs.renameSync(oldFull, newFull);
+    res.json({ message: 'Renamed', oldPath, newPath });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete file or folder
+router.delete('/file/:side', ...adminOnly, (req, res) => {
+  try {
+    const root = req.params.side === 'frontend' ? FRONTEND_ROOT : BACKEND_ROOT;
+    const filePath = req.query.path;
+    if (!filePath) return res.status(400).json({ error: 'path required' });
+    const full = safePath(root, filePath);
+    if (!fs.existsSync(full)) return res.status(404).json({ error: 'Not found' });
+    const stat = fs.statSync(full);
+    if (stat.isDirectory()) {
+      fs.rmSync(full, { recursive: true, force: true });
+    } else {
+      fs.unlinkSync(full);
+    }
+    res.json({ message: 'Deleted', path: filePath });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});

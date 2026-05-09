@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
-import Navbar from "../components/Navbar";
+import { useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
 import {
   Users, Trash2, RefreshCw, Plus, Edit2, X, Cpu, Shield, Activity,
   Terminal, Circle, Download, Bookmark, BookmarkCheck, Copy, Check,
   Layers, Clock, Zap, Server, MemoryStick, Hash, ChevronDown, ChevronRight,
-  Building2, GraduationCap, UserCheck
+  Building2, GraduationCap, LogOut, Sun, Moon, Home, Code2
 } from "lucide-react";
 
 const ROLES = ["hod","vc","faculty","admin"];
@@ -73,7 +73,7 @@ function groupLogs(logs) {
 }
 
 // ── File Tree Component ───────────────────────────────────────
-function FileTree({ nodes, openPath, collapsed, onToggleDir, onOpenFile, depth = 0 }) {
+function FileTree({ nodes, openPath, collapsed, onToggleDir, onOpenFile, onCtxMenu, depth = 0 }) {
   if (!nodes || nodes.length === 0) return null;
   return (
     <div>
@@ -82,26 +82,32 @@ function FileTree({ nodes, openPath, collapsed, onToggleDir, onOpenFile, depth =
           const isOpen = !collapsed[node.path];
           return (
             <div key={node.path}>
-              <button onClick={() => onToggleDir(node.path)}
-                className="w-full flex items-center gap-1.5 px-3 py-1 hover:bg-slate-800/50 text-slate-400 hover:text-slate-200 transition-colors text-left"
-                style={{ paddingLeft: `${12 + depth*12}px` }}>
-                <span className="text-xs">{isOpen ? "▾" : "▸"}</span>
-                <span className="text-xs font-mono text-slate-400">📁 {node.name}</span>
-              </button>
-              {isOpen && <FileTree nodes={node.children} openPath={openPath} collapsed={collapsed} onToggleDir={onToggleDir} onOpenFile={onOpenFile} depth={depth+1}/>}
+              <div className="flex items-center group"
+                onContextMenu={e => onCtxMenu(e, node)}>
+                <button onClick={() => onToggleDir(node.path)}
+                  className="flex-1 flex items-center gap-1.5 py-1 hover:bg-slate-800/50 text-slate-400 hover:text-slate-200 transition-colors text-left"
+                  style={{ paddingLeft: `${12 + depth*12}px` }}>
+                  <span className="text-xs">{isOpen ? "▾" : "▸"}</span>
+                  <span className="text-xs font-mono">📁 {node.name}</span>
+                </button>
+              </div>
+              {isOpen && <FileTree nodes={node.children} openPath={openPath} collapsed={collapsed} onToggleDir={onToggleDir} onOpenFile={onOpenFile} onCtxMenu={onCtxMenu} depth={depth+1}/>}
             </div>
           );
         }
-        const isOpen = openPath === node.path;
+        const isActive = openPath === node.path;
         const ext = node.ext;
         const icon = ext==='.jsx'||ext==='.tsx'?"⚛️":ext==='.js'||ext==='.ts'?"📜":ext==='.json'?"{}":ext==='.md'?"📝":"📄";
         return (
-          <button key={node.path} onClick={() => onOpenFile(node.path)}
-            className={`w-full flex items-center gap-1.5 py-1 hover:bg-slate-800/50 transition-colors text-left ${isOpen?"bg-indigo-900/40 text-indigo-300":"text-slate-400 hover:text-slate-200"}`}
-            style={{ paddingLeft: `${20 + depth*12}px` }}>
-            <span className="text-xs">{icon}</span>
-            <span className="text-xs font-mono truncate">{node.name}</span>
-          </button>
+          <div key={node.path} className="flex items-center group"
+            onContextMenu={e => onCtxMenu(e, node)}>
+            <button onClick={() => onOpenFile(node.path)}
+              className={`flex-1 flex items-center gap-1.5 py-1 transition-colors text-left ${isActive?"bg-indigo-900/40 text-indigo-300":"text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"}`}
+              style={{ paddingLeft: `${20 + depth*12}px` }}>
+              <span className="text-xs">{icon}</span>
+              <span className="text-xs font-mono truncate">{node.name}</span>
+            </button>
+          </div>
         );
       })}
     </div>
@@ -109,11 +115,62 @@ function FileTree({ nodes, openPath, collapsed, onToggleDir, onOpenFile, depth =
 }
 
 export default function AdminDashboard() {
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("overview");
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [isDark, setIsDark] = useState(() => {
+    try { return localStorage.getItem("admin_theme") !== "light"; } catch { return true; }
+  });
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("admin_theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  // Theme classes — dark = current dark UI, light = fully white like HOD dashboard
+  const theme = isDark ? {
+    bg:       "bg-slate-950",
+    sidebar:  "bg-slate-900 border-slate-800",
+    header:   "bg-slate-900 border-slate-800",
+    border:   "border-slate-800",
+    navActive:"bg-gradient-to-r from-red-600/20 to-rose-600/10 text-red-400 border border-red-500/20",
+    navIdle:  "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60",
+    navIcon:  "text-slate-500",
+    card:     "bg-slate-900 border-slate-800",
+    text:     "text-white",
+    subtext:  "text-slate-400",
+    divider:  "border-slate-800",
+    userBg:   "bg-slate-800",
+    dropBg:   "bg-slate-800 border-slate-700",
+    dropItem: "text-slate-300 hover:bg-slate-700",
+    logoText: "text-white",
+    logoSub:  "text-slate-500",
+  } : {
+    bg:       "bg-slate-50",
+    sidebar:  "bg-white border-slate-200",
+    header:   "bg-white border-slate-200",
+    border:   "border-slate-200",
+    navActive:"bg-gradient-to-r from-red-50 to-rose-50 text-red-600 border border-red-200",
+    navIdle:  "text-slate-600 hover:text-slate-900 hover:bg-slate-100",
+    navIcon:  "text-slate-400",
+    card:     "bg-white border-slate-200",
+    text:     "text-slate-900",
+    subtext:  "text-slate-500",
+    divider:  "border-slate-200",
+    userBg:   "bg-slate-100",
+    dropBg:   "bg-white border-slate-200",
+    dropItem: "text-slate-700 hover:bg-slate-100",
+    logoText: "text-slate-900",
+    logoSub:  "text-slate-500",
+  };
+
+  function handleLogout() {
+    logout();
+    window.location.href = "http://localhost:5176/landing";
+  }
 
   // Terminal
   const [logs, setLogs] = useState([]);
@@ -152,13 +209,23 @@ export default function AdminDashboard() {
   // Code editor state
   const [editorSide, setEditorSide] = useState("backend");
   const [fileTree, setFileTree] = useState([]);
-  const [openFile, setOpenFile] = useState(null); // { path, content, lines, side }
+  const [openTabs, setOpenTabs] = useState([]); // [{ path, content, side, dirty }]
+  const [activeTab, setActiveTab] = useState(null); // path
+  const [openFile, setOpenFile] = useState(null);
   const [editContent, setEditContent] = useState("");
   const [editorSaving, setEditorSaving] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
   const [jumpLine, setJumpLine] = useState(null);
   const [collapsedDirs, setCollapsedDirs] = useState({});
   const editorRef = useRef(null);
+  // Context menu
+  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, node }
+  // New file/folder dialog
+  const [newItemDialog, setNewItemDialog] = useState(null); // { type:'file'|'folder', parentPath, side }
+  const [newItemName, setNewItemName] = useState("");
+  // Rename dialog
+  const [renameDialog, setRenameDialog] = useState(null); // { node, side }
+  const [renameName, setRenameName] = useState("");
 
   // Git state
   const [gitStatus, setGitStatus] = useState(null);
@@ -223,13 +290,47 @@ export default function AdminDashboard() {
   }
   async function openFileInEditor(filePath, side, line = null) {
     try {
+      // Check if already open in a tab
+      const existing = openTabs.find(t => t.path === filePath && t.side === side);
+      if (existing) {
+        setActiveTab(filePath);
+        setOpenFile(existing);
+        setEditContent(existing.content);
+        setEditorDirty(existing.dirty || false);
+        if (line) setJumpLine(line);
+        setTab("code");
+        return;
+      }
       const { data } = await api().get(`/api/codeeditor/file/${side}?path=${encodeURIComponent(filePath)}`);
-      setOpenFile({ path: filePath, lines: data.lines, side });
+      const fileObj = { path: filePath, content: data.content, lines: data.lines, side, dirty: false };
+      setOpenTabs(prev => [...prev.filter(t => !(t.path===filePath&&t.side===side)), fileObj]);
+      setActiveTab(filePath);
+      setOpenFile(fileObj);
       setEditContent(data.content);
       setEditorDirty(false);
       setJumpLine(line);
       setTab("code");
-    } catch(err) { toast.error("Cannot open file: " + (err.response?.data?.error || err.message)); }
+    } catch(err) { toast.error("Cannot open: " + (err.response?.data?.error || err.message)); }
+  }
+  function switchTab(tab) {
+    // Save current content to tab
+    setOpenTabs(prev => prev.map(t => t.path===activeTab ? {...t, content:editContent, dirty:editorDirty} : t));
+    setActiveTab(tab.path);
+    setOpenFile(tab);
+    setEditContent(tab.content);
+    setEditorDirty(tab.dirty || false);
+  }
+  function closeTab(filePath, e) {
+    e.stopPropagation();
+    const tab = openTabs.find(t => t.path === filePath);
+    if (tab?.dirty && !window.confirm(`${filePath} has unsaved changes. Close anyway?`)) return;
+    const remaining = openTabs.filter(t => t.path !== filePath);
+    setOpenTabs(remaining);
+    if (activeTab === filePath) {
+      const next = remaining[remaining.length - 1];
+      if (next) { setActiveTab(next.path); setOpenFile(next); setEditContent(next.content); setEditorDirty(next.dirty||false); }
+      else { setActiveTab(null); setOpenFile(null); setEditContent(""); setEditorDirty(false); }
+    }
   }
   async function saveFile() {
     if (!openFile) return;
@@ -237,7 +338,8 @@ export default function AdminDashboard() {
     try {
       await api().post(`/api/codeeditor/file/${openFile.side}`, { filePath: openFile.path, content: editContent });
       setEditorDirty(false);
-      toast.success("File saved ✓");
+      setOpenTabs(prev => prev.map(t => t.path===openFile.path ? {...t, content:editContent, dirty:false} : t));
+      toast.success("Saved ✓");
     } catch(err) { toast.error("Save failed: " + (err.response?.data?.error || err.message)); }
     finally { setEditorSaving(false); }
   }
@@ -246,8 +348,55 @@ export default function AdminDashboard() {
     try {
       const { data } = await api().post(`/api/codeeditor/file/${openFile.side}/restore`, { filePath: openFile.path });
       setEditContent(data.content); setEditorDirty(false);
-      toast.success("Restored from backup");
-    } catch(err) { toast.error(err.response?.data?.error || "No backup found"); }
+      toast.success("Restored");
+    } catch(err) { toast.error(err.response?.data?.error || "No backup"); }
+  }
+  async function createNewItem() {
+    if (!newItemName.trim() || !newItemDialog) return;
+    const { type, parentPath, side } = newItemDialog;
+    const fullPath = parentPath ? `${parentPath}/${newItemName}` : newItemName;
+    try {
+      if (type === 'file') {
+        await api().post(`/api/codeeditor/file/${side}/create`, { filePath: fullPath, content: '' });
+        toast.success("File created");
+        await fetchFileTree(side);
+        openFileInEditor(fullPath, side);
+      } else {
+        await api().post(`/api/codeeditor/folder/${side}/create`, { folderPath: fullPath });
+        toast.success("Folder created");
+        await fetchFileTree(side);
+      }
+    } catch(err) { toast.error(err.response?.data?.error || "Failed"); }
+    setNewItemDialog(null); setNewItemName("");
+  }
+  async function renameItem() {
+    if (!renameName.trim() || !renameDialog) return;
+    const { node, side } = renameDialog;
+    const dir = node.path.includes('/') ? node.path.substring(0, node.path.lastIndexOf('/')) : '';
+    const newPath = dir ? `${dir}/${renameName}` : renameName;
+    try {
+      await api().post(`/api/codeeditor/rename/${side}`, { oldPath: node.path, newPath });
+      toast.success("Renamed");
+      await fetchFileTree(side);
+      // Update open tabs
+      setOpenTabs(prev => prev.map(t => t.path===node.path ? {...t, path:newPath} : t));
+      if (activeTab === node.path) setActiveTab(newPath);
+    } catch(err) { toast.error(err.response?.data?.error || "Failed"); }
+    setRenameDialog(null); setRenameName("");
+  }
+  async function deleteItem(node, side) {
+    if (!window.confirm(`Delete "${node.name}"? This cannot be undone.`)) return;
+    try {
+      await api().delete(`/api/codeeditor/file/${side}?path=${encodeURIComponent(node.path)}`);
+      toast.success("Deleted");
+      await fetchFileTree(side);
+      setOpenTabs(prev => prev.filter(t => t.path !== node.path));
+      if (activeTab === node.path) { setActiveTab(null); setOpenFile(null); setEditContent(""); }
+    } catch(err) { toast.error(err.response?.data?.error || "Failed"); }
+  }
+  function showCtxMenu(e, node, side) {
+    e.preventDefault(); e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, node, side });
   }
 
   async function fetchGitStatus() {
@@ -376,27 +525,147 @@ export default function AdminDashboard() {
     { id:"users",    label:"Users",        icon:Users },
     { id:"logs",     label:"Runtime Logs", icon:Terminal },
     { id:"code",     label:"Code Editor",  icon:Cpu },
+    { id:"home",     label:"Home",         icon:Home },
+    { id:"developer",label:"Developer",    icon:Code2 },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Navbar title="Admin Panel" subtitle="System Management" />
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 py-6 space-y-5">
-
-        <div className="flex items-center justify-between">
-          <h1 className="page-title flex items-center gap-2"><Shield size={22} className="text-red-600"/>Admin Dashboard</h1>
-          <button onClick={() => { fetchStats(); fetchUsers(); fetchMetrics(); }} className="btn btn-ghost btn-sm"><RefreshCw size={14}/> Refresh</button>
+    <div className={`min-h-screen ${theme.bg} flex`}>
+      {/* Sidebar */}
+      <aside className={`w-56 shrink-0 ${theme.sidebar} border-r flex flex-col min-h-screen`}>
+        {/* Logo */}
+        <div className={`px-5 py-5 border-b ${theme.divider}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gradient-to-br from-red-600 to-rose-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Shield size={18} className="text-white"/>
+            </div>
+            <div>
+              <p className={`font-bold text-sm leading-tight ${theme.logoText}`}>Admin Panel</p>
+              <p className={`text-xs ${theme.logoSub}`}>MITS System</p>
+            </div>
+          </div>
         </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-          {TABS.map(({ id, label, icon:Icon }) => (
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {[
+            { id:"overview", label:"Overview",     icon:Activity },
+            { id:"users",    label:"Users",        icon:Users },
+            { id:"logs",     label:"Runtime Logs", icon:Terminal },
+            { id:"code",     label:"Code Editor",  icon:Cpu },
+          ].map(({ id, label, icon:Icon }) => (
             <button key={id} onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${tab===id?"bg-white shadow text-slate-800":"text-slate-500 hover:text-slate-700"}`}>
-              <Icon size={14}/>{label}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                tab===id ? theme.navActive : theme.navIdle
+              }`}>
+              <Icon size={16} className={tab===id?"text-red-500":theme.navIcon}/>
+              {label}
             </button>
           ))}
+          {/* Divider */}
+          <div className={`border-t ${theme.divider} my-2`}/>
+          {[
+            { id:"home",      label:"Home",      icon:Home },
+            { id:"developer", label:"Developer", icon:Code2 },
+          ].map(({ id, label, icon:Icon }) => (
+            <button key={id} onClick={() => setTab(id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                tab===id ? theme.navActive : theme.navIdle
+              }`}>
+              <Icon size={16} className={tab===id?"text-red-500":theme.navIcon}/>
+              {label}
+            </button>
+          ))}
+        </nav>
+        {/* Bottom user info */}
+        <div className={`px-4 py-4 border-t ${theme.divider}`}>
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-red-600 to-rose-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+              {user?.name?.[0]?.toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className={`text-xs font-semibold truncate ${theme.text}`}>{user?.name}</p>
+              <p className={`text-xs truncate ${theme.subtext}`}>{user?.email}</p>
+            </div>
+          </div>
+          <button onClick={() => { fetchStats(); fetchUsers(); fetchMetrics(); }}
+            className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg transition-colors mb-1 ${theme.navIdle}`}>
+            <RefreshCw size={12}/> Refresh All
+          </button>
+          <button onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+            <LogOut size={12}/> Sign Out
+          </button>
         </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+        {/* Top bar */}
+        <header className={`${theme.header} border-b px-6 py-3 flex items-center justify-between shrink-0`}>
+          <div>
+            <h1 className={`font-bold text-base flex items-center gap-2 ${theme.text}`}>
+              {TABS.find(t=>t.id===tab)?.icon && (() => { const Icon = TABS.find(t=>t.id===tab).icon; return <Icon size={18} className="text-red-500"/>; })()}
+              {TABS.find(t=>t.id===tab)?.label || "Dashboard"}
+            </h1>
+            <p className={`text-xs mt-0.5 ${theme.subtext}`}>MITS Gwalior · Admin Control Panel</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {metrics && (
+              <div className={`hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg border ${theme.userBg} ${theme.border} ${theme.subtext}`}>
+                <Circle size={6} className="text-emerald-500 fill-emerald-500"/>
+                <span>Uptime {Math.floor(metrics.uptime/3600)}h {Math.floor((metrics.uptime%3600)/60)}m</span>
+                <span className="opacity-40">·</span>
+                <span>{metrics.memUsed}MB heap</span>
+              </div>
+            )}
+            {/* Dark/Light toggle */}
+            <button onClick={() => setIsDark(d => !d)}
+              title={isDark ? "Switch to Day mode" : "Switch to Night mode"}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors">
+              {isDark ? <Sun size={15}/> : <Moon size={15}/>}
+            </button>
+            {/* User dropdown */}
+            <div className="relative">
+              <button onClick={() => setShowUserDropdown(d => !d)}
+                className={`flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl hover:${theme.userBg} transition-colors`}>
+                <div className="w-7 h-7 bg-gradient-to-br from-red-600 to-rose-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                  {user?.name?.[0]?.toUpperCase()}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <p className={`text-xs font-semibold leading-tight ${theme.text}`}>{user?.name}</p>
+                  <p className={`text-xs leading-tight ${theme.subtext}`}>{user?.email}</p>
+                </div>
+                <ChevronDown size={12} className={`${theme.subtext} transition-transform ${showUserDropdown?"rotate-180":""}`}/>
+              </button>
+              {showUserDropdown && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowUserDropdown(false)}/>
+                  <div className={`absolute right-0 top-full mt-2 w-56 ${theme.dropBg} border rounded-2xl shadow-2xl z-40 overflow-hidden`}>
+                    <div className="px-4 py-3 border-b border-red-100 bg-gradient-to-r from-red-50 to-rose-50">
+                      <p className="text-sm font-bold text-slate-900">{user?.name}</p>
+                      <p className="text-xs text-slate-500">{user?.email}</p>
+                      <span className="text-xs bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-full mt-1 inline-block">Admin</span>
+                    </div>
+                    <div className="py-1">
+                      <button onClick={() => setIsDark(d => !d)}
+                        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${theme.dropItem}`}>
+                        {isDark ? <Sun size={14} className="text-amber-500"/> : <Moon size={14} className="text-indigo-500"/>}
+                        {isDark ? "Light Mode" : "Dark Mode"}
+                      </button>
+                      <div className={`border-t ${theme.divider} my-1`}/>
+                      <button onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
+                        <LogOut size={14}/> Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+
+        <main className={`flex-1 overflow-y-auto px-6 py-5 space-y-5 ${isDark?"":"bg-slate-50"}`}>
 
         {/* OVERVIEW */}
         {tab==="overview" && stats && (
@@ -408,28 +677,28 @@ export default function AdminDashboard() {
                 { label:"Submissions",    value:stats.submissions, color:"violet", icon:"📤" },
                 { label:"Error Logs",     value:stats.errorLogs,   color:"red",    icon:"🔴" },
               ].map(s => (
-                <div key={s.label} className="card p-5">
+                <div key={s.label} className={`${theme.card} border rounded-2xl p-5 hover:shadow-md transition-all`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xl">{s.icon}</span>
                     <span className={`text-2xl font-bold text-${s.color}-600`}>{s.value}</span>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium">{s.label}</p>
+                  <p className={`text-xs font-medium ${theme.subtext}`}>{s.label}</p>
                 </div>
               ))}
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="card p-5">
-                <p className="text-sm font-semibold text-slate-700 mb-3">Users by Role</p>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                <p className="text-sm font-semibold text-slate-200 mb-3">Users by Role</p>
                 {stats.usersByRole.map(r => (
-                  <div key={r._id} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
-                    <span className="text-sm text-slate-600 capitalize">{r._id}</span>
-                    <span className="text-sm font-bold text-slate-800">{r.count}</span>
+                  <div key={r._id} className="flex items-center justify-between py-1.5 border-b border-slate-800 last:border-0">
+                    <span className="text-sm text-slate-400 capitalize">{r._id}</span>
+                    <span className="text-sm font-bold text-slate-100">{r.count}</span>
                   </div>
                 ))}
               </div>
               {metrics && (
-                <div className="card p-5">
-                  <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2"><Server size={14}/>Server Health</p>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                  <p className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><Server size={14}/>Server Health</p>
                   {[
                     ["Uptime", `${Math.floor(metrics.uptime/3600)}h ${Math.floor((metrics.uptime%3600)/60)}m`],
                     ["Memory Used", `${metrics.memUsed} MB / ${metrics.memTotal} MB`],
@@ -437,9 +706,9 @@ export default function AdminDashboard() {
                     ["Node.js", metrics.nodeVersion],
                     ["PID", metrics.pid],
                   ].map(([l,v]) => (
-                    <div key={l} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                    <div key={l} className="flex items-center justify-between py-1.5 border-b border-slate-800 last:border-0">
                       <span className="text-xs text-slate-500">{l}</span>
-                      <span className="text-xs font-mono font-semibold text-slate-700">{v}</span>
+                      <span className="text-xs font-mono font-semibold text-slate-400">{v}</span>
                     </div>
                   ))}
                 </div>
@@ -885,61 +1154,96 @@ export default function AdminDashboard() {
             <div className="flex gap-3 h-[70vh]">
               {/* File tree */}
               <div className="w-56 shrink-0 bg-slate-950 rounded-2xl border border-slate-800 overflow-y-auto">
-                <div className="px-3 py-2 border-b border-slate-800 text-xs text-slate-500 font-mono uppercase tracking-widest">
-                  {editorSide}/
+                <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-mono uppercase tracking-widest">{editorSide}/</span>
+                  <div className="flex gap-1">
+                    <button onClick={() => setNewItemDialog({ type:'file', parentPath:'', side:editorSide })}
+                      title="New File" className="text-slate-500 hover:text-emerald-400 transition-colors p-0.5">
+                      <span className="text-sm">📄+</span>
+                    </button>
+                    <button onClick={() => setNewItemDialog({ type:'folder', parentPath:'', side:editorSide })}
+                      title="New Folder" className="text-slate-500 hover:text-blue-400 transition-colors p-0.5">
+                      <span className="text-sm">📁+</span>
+                    </button>
+                    <button onClick={() => fetchFileTree(editorSide)} title="Refresh" className="text-slate-500 hover:text-slate-300 transition-colors p-0.5">
+                      <RefreshCw size={11}/>
+                    </button>
+                  </div>
                 </div>
                 <FileTree
                   nodes={fileTree}
-                  openPath={openFile?.path}
+                  openPath={activeTab}
                   collapsed={collapsedDirs}
                   onToggleDir={d => setCollapsedDirs(p=>({...p,[d]:!p[d]}))}
                   onOpenFile={p => openFileInEditor(p, editorSide)}
+                  onCtxMenu={(e, node) => showCtxMenu(e, node, editorSide)}
                 />
               </div>
 
-              {/* Editor */}
+              {/* Editor area */}
               <div className="flex-1 bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden flex flex-col">
+                {/* Tabs bar */}
+                {openTabs.length > 0 && (
+                  <div className="flex items-center bg-slate-900 border-b border-slate-800 overflow-x-auto scrollbar-none shrink-0">
+                    {openTabs.map(t => (
+                      <div key={t.path} onClick={() => switchTab(t)}
+                        className={`flex items-center gap-2 px-3 py-2 border-r border-slate-800 cursor-pointer shrink-0 group transition-colors ${activeTab===t.path?"bg-slate-950 text-slate-200 border-t-2 border-t-indigo-500":"text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"}`}>
+                        <span className="text-xs font-mono">{t.dirty && <span className="text-amber-400 mr-1">●</span>}{t.path.split('/').pop()}</span>
+                        <button onClick={e => closeTab(t.path, e)}
+                          className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all text-slate-500 leading-none">
+                          <X size={11}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {openFile ? (
                   <>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0">
-                      <span className="text-xs text-slate-400 font-mono">{openFile.path}</span>
-                      <span className="ml-auto text-xs text-slate-600 font-mono">{editContent.split('\n').length} lines</span>
+                    <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-900/50 border-b border-slate-800 shrink-0">
+                      <span className="text-xs text-slate-500 font-mono flex-1 truncate">{openFile.side}/{openFile.path}</span>
+                      <span className="text-xs text-slate-600 font-mono">{editContent.split('\n').length} lines</span>
+                      <span className="text-xs text-slate-600 font-mono">{editContent.length} chars</span>
                     </div>
                     <div className="flex flex-1 overflow-hidden">
                       {/* Line numbers */}
-                      <div className="w-12 bg-slate-900/50 border-r border-slate-800 overflow-hidden shrink-0 pt-3 pb-3 text-right pr-2">
+                      <div className="w-12 bg-slate-900/30 border-r border-slate-800/50 overflow-hidden shrink-0 pt-3 pb-3 text-right pr-2 select-none">
                         {editContent.split('\n').map((_, i) => (
-                          <div key={i} className="text-xs text-slate-600 font-mono leading-5 select-none">{i+1}</div>
+                          <div key={i} className="text-xs text-slate-600 font-mono leading-5">{i+1}</div>
                         ))}
                       </div>
                       {/* Code textarea */}
                       <textarea
                         ref={editorRef}
                         value={editContent}
-                        onChange={e => { setEditContent(e.target.value); setEditorDirty(true); }}
+                        onChange={e => {
+                          setEditContent(e.target.value);
+                          setEditorDirty(true);
+                          setOpenTabs(prev => prev.map(t => t.path===openFile.path ? {...t, content:e.target.value, dirty:true} : t));
+                        }}
                         onKeyDown={e => {
-                          // Tab inserts 2 spaces
-                          if (e.key === 'Tab') {
+                          if (e.key==='Tab') {
                             e.preventDefault();
-                            const s = e.target.selectionStart, end = e.target.selectionEnd;
-                            const v = editContent;
-                            setEditContent(v.substring(0,s) + '  ' + v.substring(end));
-                            setTimeout(() => { e.target.selectionStart = e.target.selectionEnd = s+2; }, 0);
+                            const s=e.target.selectionStart, end=e.target.selectionEnd;
+                            const v=editContent;
+                            const newVal=v.substring(0,s)+'  '+v.substring(end);
+                            setEditContent(newVal);
+                            setTimeout(()=>{e.target.selectionStart=e.target.selectionEnd=s+2;},0);
                           }
-                          // Ctrl+S saves
-                          if ((e.ctrlKey||e.metaKey) && e.key==='s') { e.preventDefault(); saveFile(); }
+                          if ((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveFile();}
+                          if ((e.ctrlKey||e.metaKey)&&e.key==='w'){e.preventDefault();closeTab(openFile.path,{stopPropagation:()=>{}});}
                         }}
                         spellCheck={false}
                         className="flex-1 bg-transparent text-slate-200 font-mono text-xs leading-5 p-3 resize-none outline-none overflow-auto"
-                        style={{ tabSize: 2 }}
+                        style={{ tabSize:2 }}
                       />
                     </div>
                   </>
                 ) : (
                   <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-600">
                     <Cpu size={32} className="opacity-30"/>
-                    <p className="text-sm font-mono">Select a file from the tree to edit</p>
-                    <p className="text-xs font-mono opacity-60">Or click "Open in Editor" from a log error</p>
+                    <p className="text-sm font-mono">Select a file to edit</p>
+                    <p className="text-xs font-mono opacity-60">Right-click in the tree to create files/folders</p>
                   </div>
                 )}
               </div>
@@ -1013,8 +1317,152 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
+
+        {/* HOME tab — embedded landing page content */}
+        {tab==="home" && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 border border-slate-700 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <span className="text-white font-black text-2xl">M</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">MITS Feedback System</h2>
+              <p className="text-slate-400 text-sm mb-6">Madhav Institute of Technology & Science, Gwalior · Deemed University</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                {[
+                  { label:"HOD Portal",     port:5173, grad:"from-indigo-600 to-violet-600",  desc:"Manage faculty feedback" },
+                  { label:"Faculty Portal", port:5175, grad:"from-emerald-600 to-teal-600",   desc:"View your reports" },
+                  { label:"VC Portal",      port:5174, grad:"from-purple-600 to-indigo-600",  desc:"Approve submissions" },
+                ].map(p => (
+                  <a key={p.port} href={`http://localhost:${p.port}`} target="_blank" rel="noopener noreferrer"
+                    className={`bg-gradient-to-br ${p.grad} rounded-2xl p-5 text-left text-white hover:scale-105 transition-all shadow-lg`}>
+                    <p className="font-bold text-sm mb-1">{p.label}</p>
+                    <p className="text-white/60 text-xs">{p.desc}</p>
+                    <p className="text-white/40 text-xs mt-2">localhost:{p.port} ↗</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+            {stats && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label:"Users",       value:stats.users,       icon:"👥" },
+                  { label:"Reports",     value:stats.reports,     icon:"📋" },
+                  { label:"Submissions", value:stats.submissions, icon:"📤" },
+                  { label:"Errors",      value:stats.errorLogs,   icon:"🔴" },
+                ].map(s => (
+                  <div key={s.label} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-center">
+                    <div className="text-2xl mb-1">{s.icon}</div>
+                    <div className="text-2xl font-bold text-white">{s.value}</div>
+                    <p className="text-xs text-slate-500 mt-1">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DEVELOPER tab */}
+        {tab==="developer" && (
+          <div className="animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Code2 size={28} className="text-white"/>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Developer Info</h2>
+                  <p className="text-slate-400 text-sm">MITS Faculty Feedback Analysis System</p>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {[
+                  ["Project", "Faculty Feedback Analysis System"],
+                  ["Institute", "MITS Gwalior (Deemed University)"],
+                  ["Frontend", "React 18 + Vite + Tailwind CSS"],
+                  ["Backend", "Node.js + Express + MongoDB"],
+                  ["AI Engine", "HuggingFace (local, no API key)"],
+                  ["PDF", "pdf-lib + pdfjs-dist"],
+                  ["Auth", "JWT (7 day expiry)"],
+                  ["Portals", "HOD:5173 · VC:5174 · Faculty:5175 · Main:5176 · Admin:5177"],
+                ].map(([k,v]) => (
+                  <div key={k} className="bg-slate-800/50 rounded-xl px-4 py-3 border border-slate-700">
+                    <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mb-1">{k}</p>
+                    <p className="text-sm text-slate-200 font-medium">{v}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
-      <Footer />
+    </div>
+
+      {/* Context Menu */}
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)}/>
+          <div className="fixed z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl py-1 min-w-[160px]"
+            style={{ left: ctxMenu.x, top: ctxMenu.y }}>
+            {ctxMenu.node.type === 'dir' && (
+              <>
+                <button onClick={() => { setNewItemDialog({ type:'file', parentPath:ctxMenu.node.path, side:ctxMenu.side }); setCtxMenu(null); }}
+                  className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2">
+                  📄 New File
+                </button>
+                <button onClick={() => { setNewItemDialog({ type:'folder', parentPath:ctxMenu.node.path, side:ctxMenu.side }); setCtxMenu(null); }}
+                  className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2">
+                  📁 New Folder
+                </button>
+                <div className="border-t border-slate-700 my-1"/>
+              </>
+            )}
+            <button onClick={() => { setRenameDialog({ node:ctxMenu.node, side:ctxMenu.side }); setRenameName(ctxMenu.node.name); setCtxMenu(null); }}
+              className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2">
+              ✏️ Rename
+            </button>
+            <button onClick={() => { deleteItem(ctxMenu.node, ctxMenu.side); setCtxMenu(null); }}
+              className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-900/30 flex items-center gap-2">
+              🗑️ Delete
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* New File/Folder Dialog */}
+      {newItemDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-200">
+              {newItemDialog.type === 'file' ? '📄 New File' : '📁 New Folder'}
+              {newItemDialog.parentPath && <span className="text-slate-500 font-mono text-xs ml-2">in {newItemDialog.parentPath}/</span>}
+            </h3>
+            <input autoFocus type="text" placeholder={newItemDialog.type==='file'?"filename.js":"folder-name"}
+              value={newItemName} onChange={e=>setNewItemName(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter')createNewItem();if(e.key==='Escape'){setNewItemDialog(null);setNewItemName("");}}}
+              className="w-full bg-slate-800 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-700 font-mono outline-none focus:border-indigo-500"/>
+            <div className="flex gap-2">
+              <button onClick={()=>{setNewItemDialog(null);setNewItemName("");}} className="btn btn-secondary flex-1 text-xs">Cancel</button>
+              <button onClick={createNewItem} disabled={!newItemName.trim()} className="btn btn-primary flex-1 text-xs disabled:opacity-40">Create</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Dialog */}
+      {renameDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-200">✏️ Rename "{renameDialog.node.name}"</h3>
+            <input autoFocus type="text" value={renameName} onChange={e=>setRenameName(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter')renameItem();if(e.key==='Escape'){setRenameDialog(null);setRenameName("");}}}
+              className="w-full bg-slate-800 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-700 font-mono outline-none focus:border-indigo-500"/>
+            <div className="flex gap-2">
+              <button onClick={()=>{setRenameDialog(null);setRenameName("");}} className="btn btn-secondary flex-1 text-xs">Cancel</button>
+              <button onClick={renameItem} disabled={!renameName.trim()} className="btn btn-primary flex-1 text-xs disabled:opacity-40">Rename</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* User Modal */}
       {showUserModal && (
