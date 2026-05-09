@@ -38,8 +38,6 @@ router.post('/upload-csv', authMiddleware, csvUpload.single('csv'), async (req, 
       links: entries.map(e => e.pdfLink),
       total: entries.length
     });
-    // Log CSV upload
-    log(req.user.id, 'csv_upload', `CSV uploaded with ${entries.length} PDF links`, { total: entries.length }, 'success');
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -61,11 +59,24 @@ router.post('/process-one', authMiddleware, async (req, res) => {
     let meta = getCached(metaCacheKey);
 
     if (!result || !meta) {
-      // Download and analyze
-      const response = await axios.get(convertDriveLink(pdfLink), {
-        responseType: 'arraybuffer', timeout: 30000,
-        headers: { 'User-Agent': 'Mozilla/5.0' }, maxRedirects: 5
-      });
+      // Download and analyze — retry once on rate limit
+      let response;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          response = await axios.get(convertDriveLink(pdfLink), {
+            responseType: 'arraybuffer', timeout: 30000,
+            headers: { 'User-Agent': 'Mozilla/5.0' }, maxRedirects: 5
+          });
+          break; // success
+        } catch (err) {
+          if (attempt < 3 && (err.response?.status === 429 || err.response?.status === 503)) {
+            // Rate limited — wait 3 seconds then retry
+            await new Promise(r => setTimeout(r, 3000 * attempt));
+            continue;
+          }
+          throw err;
+        }
+      }
       const buffer = Buffer.from(response.data);
 
       [result, meta] = await Promise.all([
@@ -96,15 +107,9 @@ router.post('/process-one', authMiddleware, async (req, res) => {
     });
 
     res.json({ report, sno });
-    // Log successful PDF processing
-    log(req.user.id, 'pdf_processed',
-      `PDF processed: ${report.facultyName || 'Unknown'} (${report.subjectCode || 'N/A'}) — FFI: ${report.ffiScore ?? 'N/A'}`,
-      { reportId: report._id, facultyName: report.facultyName, ffiScore: report.ffiScore, sno },
-      'success'
-    );
   } catch (err) {
-    console.error('[process-one]', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[process-one] ERROR:', err.message || err);
+    res.status(500).json({ error: err.message || 'Processing failed' });
   }
 });
 

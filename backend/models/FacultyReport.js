@@ -18,11 +18,13 @@ const facultyReportSchema = new mongoose.Schema({
   appreciationCount: { type: Number, default: 0 },
   attentionCount: { type: Number, default: 0 },
   ffiScore: { type: Number, default: null },
+  commentPercentages: { type: Object, default: {} }, // { "Excellent": 10, "Very Good": 25, "Good": 65 }
 
   // HOD editable fields
   hodRemarks: { type: String, default: '' },
-  goodComments: [{ type: String }],   // HOD can edit/add
-  badComments: [{ type: String }],    // HOD can edit/add
+  actionTaken: { type: String, default: '' },  // HOD action taken comment
+  goodComments: [{ type: String }],
+  badComments: [{ type: String }],
 
   // Faculty acknowledgment
   facultyAcknowledged: { type: Boolean, default: false },
@@ -31,7 +33,8 @@ const facultyReportSchema = new mongoose.Schema({
 
   status: { type: String, enum: ['pending', 'processed', 'error', 'sent_to_faculty', 'faculty_approved'], default: 'pending' },
   errorMessage: { type: String },
-  analyzedAt: { type: Date }
+  analyzedAt: { type: Date },
+  academicYear: { type: String, default: () => new Date().getFullYear().toString() } // e.g. "2025"
 }, { timestamps: true });
 
 module.exports = mongoose.model('FacultyReport', facultyReportSchema);

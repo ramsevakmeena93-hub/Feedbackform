@@ -204,14 +204,14 @@ async function extractAllStudentComments(buffer) {
     const page = await doc.getPage(pageNum);
     const tc = await page.getTextContent();
 
-    // Group text items by Y row
+    // Group text items by Y row — use tighter tolerance (2px) to keep same-line items together
     const items = tc.items
       .filter(i => i.str && i.str.trim())
       .map(i => ({ str: i.str.trim(), x: i.transform[4], y: i.transform[5] }));
 
     const rowMap = {};
     items.forEach(item => {
-      const yKey = Math.round(item.y / 3) * 3;
+      const yKey = Math.round(item.y / 2) * 2; // 2px tolerance
       if (!rowMap[yKey]) rowMap[yKey] = [];
       rowMap[yKey].push(item);
     });
@@ -226,31 +226,48 @@ async function extractAllStudentComments(buffer) {
         commentSectionY = y;
         break;
       }
-      // Also detect by "FFI & Suggestions" row
       if (rowText.includes('ffi') && rowText.includes('suggestion')) {
         commentSectionY = y;
         break;
       }
     }
 
-    // If found, collect all text rows below it
     const startY = commentSectionY !== null ? commentSectionY : null;
+    const commentRows = startY !== null
+      ? yKeys.filter(k => k < startY)
+      : yKeys;
 
-    if (startY !== null) {
-      // Get rows below the header (lower y values in PDF = lower on page)
-      const commentRows = yKeys.filter(k => k < startY);
-      for (const y of commentRows) {
-        const rowItems = rowMap[y].sort((a, b) => a.x - b.x);
-        const text = rowItems.map(i => i.str).join(' ').trim().replace(/\s+/g, ' ');
-        if (isValidComment(text)) comments.push(text);
+    // Collect raw rows
+    const rawRows = [];
+    for (const y of commentRows) {
+      const rowItems = rowMap[y].sort((a, b) => a.x - b.x);
+      const text = rowItems.map(i => i.str).join(' ').trim().replace(/\s+/g, ' ');
+      if (isValidComment(text)) rawRows.push({ y, text });
+    }
+
+    // MERGE CONTINUATION LINES: merge rows that are part of the same paragraph
+    // A new paragraph starts when: previous line ends with sentence punctuation AND y-gap is large
+    const merged = [];
+    let i = 0;
+    while (i < rawRows.length) {
+      let current = rawRows[i].text;
+      // Keep merging while next line looks like a continuation of the same comment
+      while (i + 1 < rawRows.length) {
+        const next = rawRows[i + 1].text;
+        const yGap = rawRows[i].y - rawRows[i + 1].y;
+        const endsWithPunct = /[.!?]$/.test(current.trim());
+        const nextStartsUpper = /^[A-Z]/.test(next.trim());
+        // Merge if: small y-gap (same paragraph block, typically <25pt between lines)
+        // AND either: current doesn't end with punctuation, OR next starts lowercase (continuation)
+        if (yGap < 25 && (!endsWithPunct || !nextStartsUpper)) {
+          current = current + ' ' + next;
+          i++;
+        } else {
+          break;
+        }
       }
-    } else {
-      // Fallback: collect all text that looks like a comment
-      for (const y of yKeys) {
-        const rowItems = rowMap[y].sort((a, b) => a.x - b.x);
-        const text = rowItems.map(i => i.str).join(' ').trim().replace(/\s+/g, ' ');
-        if (isValidComment(text)) comments.push(text);
-      }
+      comments.push(current.trim().replace(/\s+/g, ' '));
+      i++;
     }
   }
 
@@ -376,61 +393,57 @@ async function extractMetaFromBuffer(buffer) {
   }
 
   // Pre-compute all column x positions from header
-  const facultyHeaderX  = headerX(['faculty']);                          // ~72
-  const codeHeaderX     = headerX(['code', 'subject', 'batch', 'course']); // ~155
-  const progSemHeaderX  = headerX(['programme', 'semester', 'sem']);      // ~317
-  const ffiHeaderX      = headerX(['ffi', 'score']);
-  const statusHeaderX   = headerX(['status', 'faculty status', 'signature']);
+  // From debug: Faculty=72, Course(Code)=155.9, Course(Name)=259.1, Semester=317.8, FFI=547.2
+  const facultyHeaderX  = headerX(['faculty']);
+  const courseHeaders   = headerItems.filter(i => i.str.toLowerCase() === 'course').sort((a,b) => a.x - b.x);
+  const firstCourseX    = courseHeaders[0]?.x ?? null;   // Course Code column (~155)
+  const secondCourseX   = courseHeaders[1]?.x ?? null;   // Course Name column (~259)
+  const semesterHeaderX = headerX(['semester', 'sem']);   // ~317
 
-  // Faculty Name: from "Faculty" x to first "Code/Subject" x
-  if (facultyHeaderX !== null && codeHeaderX !== null) {
-    meta.facultyName = collect(facultyHeaderX, codeHeaderX);
-  } else if (facultyHeaderX !== null) {
-    meta.facultyName = collect(facultyHeaderX, facultyHeaderX + 100);
+  // Faculty Name: from "Faculty" x to first "Course" x
+  if (facultyHeaderX !== null && firstCourseX !== null) {
+    meta.facultyName = collect(facultyHeaderX, firstCourseX);
   }
 
-  // Course Code / Subject / Batch: from "Code" to "Prog/Sem"
-  if (codeHeaderX !== null && progSemHeaderX !== null) {
-    const raw = collect(codeHeaderX, progSemHeaderX).trim();
-    // Keep full code including batch
-    meta.subjectCode = raw.replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim();
+  // Subject Code: from first "Course" x to second "Course" x
+  // Only take the first alphanumeric code token (e.g. "16242202") + batch suffix
+  if (firstCourseX !== null) {
+    const nX = secondCourseX ?? semesterHeaderX ?? 9999;
+    const raw = collect(firstCourseX, nX).trim();
+    // The course code cell may contain: "16242202-Batch-A" or "16242202 Batch-A" or "16242202 Batch A"
+    // Step 1: collapse all whitespace around hyphens
+    const cleaned = raw.replace(/\s*-\s*/g, '-').trim();
+    // Step 2: find the code — digits followed by any -word parts (including Batch-A)
+    // Also handle space-separated: "16242202 Batch-A" → treat space before Batch as hyphen
+    const withBatch = cleaned.replace(/(\d{5,})\s+([A-Za-z])/g, '$1-$2');
+    const codeMatch = withBatch.match(/\d{5,}(?:-[A-Za-z0-9]+)*/);
+    meta.subjectCode = codeMatch ? codeMatch[0] : raw.split(/[\s]+/)[0];
+    console.log(`[PDF Meta] raw:"${raw}" → code:"${meta.subjectCode}"`);
   }
 
-  // Programme & Semester: from "Prog/Sem" to "FFI"
-  if (progSemHeaderX !== null) {
-    const nX = ffiHeaderX ?? 9999;
-    const rawProgSem = collect(progSemHeaderX, nX).trim();
-    meta.programme = rawProgSem;
-    
-    // Attempt to extract semester number from the combined text e.g. "B.Tech Sem 4" -> 4
-    const semMatch = rawProgSem.match(/\b(?:sem(?:ester)?[\s-]*(\d+)|(\d+)(?:st|nd|rd|th)?\s*sem(?:ester)?)\b/i);
-    if (semMatch) {
-      meta.semester = semMatch[1] || semMatch[2];
-    } else {
-      const numMatch = rawProgSem.match(/\b\d+\b/); // fallback: just find the number
-      if (numMatch) meta.semester = numMatch[0];
-    }
+  // Programme (Course Name): from second "Course" x to "Semester" x
+  // Also check row above dataY for multi-line course name
+  if (secondCourseX !== null) {
+    const nX = semesterHeaderX ?? 9999;
+    const aboveYs = yKeys.filter(k => k > dataY && k <= dataY + 25);
+    const aboveParts = [];
+    aboveYs.forEach(yk => {
+      (rowMap[yk] || []).filter(i => i.x >= secondCourseX - 10 && i.x < nX - 5).forEach(i => aboveParts.push(i.str));
+    });
+    const dataParts = (rowMap[dataY] || []).filter(i => i.x >= secondCourseX - 10 && i.x < nX - 5).map(i => i.str);
+    meta.programme = [...aboveParts, ...dataParts].join(' ').trim().replace(/\s+/g, ' ');
   }
 
-  // FFI Score: from FFI header specifically if exists, or fallback
-  let ffiScore = null;
-  if (ffiHeaderX !== null) {
-    const nX = statusHeaderX ?? 9999;
-    const rawFfi = collect(ffiHeaderX, nX);
-    const match = rawFfi.match(/(\d+\.\d+)/);
-    if (match) ffiScore = parseFloat(match[1]);
+  // Semester: single value at "Semester" column (width ~40px)
+  if (semesterHeaderX !== null) {
+    const semItems = (rowMap[dataY] || []).filter(i => i.x >= semesterHeaderX - 10 && i.x < semesterHeaderX + 40);
+    meta.semester = semItems.map(i => i.str).join('').trim();
   }
 
-  if (ffiScore === null) {
-    // Fallback FFI Score: rightmost decimal number in the data row
-    const dataRowItems = rowMap[dataY] || [];
-    const ffiItem = dataRowItems
-      .filter(i => /^\d+\.\d+$/.test(i.str))
-      .sort((a, b) => b.x - a.x)[0];
-    ffiScore = ffiItem ? parseFloat(ffiItem.str) : null;
-  }
-  
-  meta.ffiScore = ffiScore;
+  // FFI Score: rightmost decimal number in the data row
+  const dataRowItems = rowMap[dataY] || [];
+  const ffiItem = dataRowItems.filter(i => /^\d+\.\d+$/.test(i.str)).sort((a, b) => b.x - a.x)[0];
+  meta.ffiScore = ffiItem ? parseFloat(ffiItem.str) : null;
   return meta;
 }
 
@@ -471,6 +484,53 @@ async function analyzePDF(pdfLink) {
   return analyzePDFBuffer(buffer);
 }
 
+/**
+ * Calculate accurate percentages from raw student comments.
+ * Counts exact keyword occurrences across ALL comments (not just classified ones).
+ * Returns: { "Excellent": 10, "Very Good": 25, "Good": 65 } (percentages)
+ */
+function calculateCommentPercentages(allComments) {
+  if (!allComments || allComments.length === 0) return {};
+
+  const KEYWORDS = {
+    'Excellent': ['excellent', 'outstanding', 'superb', 'brilliant', 'best', 'besttttt', 'bestt', 'excellent teacher', 'excellent mam', 'excellent sir'],
+    'Very Good': ['very good', 'very well', 'very nice', 'very helpful', 'very great'],
+    'Good':      ['good', 'great', 'nice', 'well done', 'satisfactory', 'good teacher', 'good mam', 'good sir', 'overall good', 'nicely'],
+  };
+
+  const counts = { 'Excellent': 0, 'Very Good': 0, 'Good': 0 };
+
+  allComments.forEach(comment => {
+    const lower = comment.toLowerCase().trim();
+    // Check in priority order: Excellent > Very Good > Good
+    for (const [category, keywords] of Object.entries(KEYWORDS)) {
+      if (keywords.some(kw => {
+        // Match: exact, starts with, ends with, or contains as whole word
+        return lower === kw
+          || lower === kw + '.'
+          || lower.startsWith(kw + ' ')
+          || lower.endsWith(' ' + kw)
+          || lower.includes(' ' + kw + ' ')
+          || lower.includes(' ' + kw + '.')
+          // Also match if comment IS just this keyword (case insensitive)
+          || lower.replace(/[^a-z\s]/g, '').trim() === kw;
+      })) {
+        counts[category]++;
+        break;
+      }
+    }
+  });
+
+  const total = allComments.length; // percentage of ALL comments, not just matched
+  const result = {};
+  for (const [label, count] of Object.entries(counts)) {
+    if (count > 0) {
+      result[label] = Math.round((count / total) * 100);
+    }
+  }
+  return result;
+}
+
 async function analyzePDFBuffer(buffer) {
   const { analyzeCommentsWithAI } = require('./aiAnalyzer');
 
@@ -485,30 +545,31 @@ async function analyzePDFBuffer(buffer) {
 
   if (allComments.length > 0) {
     try {
-      // Use AI to classify all comments
       const aiResult = await analyzeCommentsWithAI(allComments);
       appreciation = aiResult.appreciation;
       commentsNeedingAttention = aiResult.commentsNeedingAttention;
       console.log(`[AI] Classified ${allComments.length} comments → ${appreciation.length} good, ${commentsNeedingAttention.length} bad`);
     } catch (aiErr) {
       console.warn('[AI] Failed, falling back to color detection:', aiErr.message);
-      // Fallback to color-based detection
       const highlights = await extractHighlightedText(buffer);
       appreciation = highlights.appreciation;
       commentsNeedingAttention = highlights.commentsNeedingAttention;
     }
   } else {
-    // No text comments found — try color detection
     const highlights = await extractHighlightedText(buffer);
     appreciation = highlights.appreciation;
     commentsNeedingAttention = highlights.commentsNeedingAttention;
   }
+
+  // Calculate accurate percentages from ALL raw comments
+  const commentPercentages = calculateCommentPercentages(allComments);
 
   return {
     appreciation,
     commentsNeedingAttention,
     appreciationCount: appreciation.length,
     attentionCount: commentsNeedingAttention.length,
+    commentPercentages,  // { "Excellent": 10, "Very Good": 25, "Good": 65 }
     ffiScore: meta.ffiScore ?? null,
     analyzedAt: new Date()
   };

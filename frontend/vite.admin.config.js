@@ -4,10 +4,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 5177,
     proxy: { '/api': 'http://localhost:5000' }
   },
   define: {
-    __APP_ROLE__: JSON.stringify('hod')
+    __APP_ROLE__: JSON.stringify('admin')
   }
 });

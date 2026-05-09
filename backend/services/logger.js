@@ -1,11 +1,16 @@
-const ActivityLog = require('../models/ActivityLog');
+const SystemLog = require('../models/SystemLog');
 
-async function log(hodId, type, message, metadata = {}, status = 'info') {
+async function log(level, source, message, meta = {}, stack = '') {
   try {
-    await ActivityLog.create({ hodId, type, message, metadata, status });
-  } catch (err) {
-    console.error('[Logger] Failed to save log:', err.message);
+    await SystemLog.create({ level, source, message, stack, meta });
+  } catch(e) {
+    // Never crash the app due to logging failure
+    console.error('[Logger] Failed to save log:', e.message);
   }
 }
 
-module.exports = { log };
+module.exports = {
+  info:  (source, msg, meta) => log('info',  source, msg, meta),
+  warn:  (source, msg, meta) => log('warn',  source, msg, meta),
+  error: (source, msg, meta, stack) => log('error', source, msg, meta, stack),
+};

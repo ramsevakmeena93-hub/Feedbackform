@@ -1,9 +1,6 @@
 /**
  * AI Comment Analyzer using HuggingFace Transformers (local, no API key needed)
  * Model: distilbert-base-uncased-finetuned-sst-2-english
- * Downloads ~67MB on first use, then works offline forever.
- *
- * Also supports Gemini if GEMINI_API_KEY is set and working.
  */
 
 let pipeline = null;
@@ -12,7 +9,6 @@ let pipelineLoading = false;
 async function getSentimentPipeline() {
   if (pipeline) return pipeline;
   if (pipelineLoading) {
-    // Wait for it to load
     while (pipelineLoading) await new Promise(r => setTimeout(r, 100));
     return pipeline;
   }
@@ -28,18 +24,7 @@ async function getSentimentPipeline() {
 }
 
 /**
- * Classify a single comment as positive or negative
- * Returns: { label: 'POSITIVE'|'NEGATIVE', score: 0-1 }
- */
-async function classifyComment(text) {
-  const classifier = await getSentimentPipeline();
-  const result = await classifier(text, { truncation: true });
-  return result[0]; // { label, score }
-}
-
-/**
- * Analyze all comments — classify into appreciation vs attention
- * No grammar correction (local model can't do that), but accurate classification
+ * Analyze all comments — batch them to avoid overloading the model
  */
 async function analyzeCommentsWithAI(rawComments) {
   if (!rawComments || rawComments.length === 0) {
@@ -49,28 +34,81 @@ async function analyzeCommentsWithAI(rawComments) {
   const appreciation = [];
   const commentsNeedingAttention = [];
 
-  // Process all comments
-  for (const comment of rawComments) {
-    if (!comment || comment.trim().length < 3) continue;
+  // PRE-FILTER: Short keyword-only comments (≤4 words) that are clearly positive
+  // go directly to appreciation without AI — avoids misclassification of fragments
+  const CLEAR_POSITIVE = ['good', 'great', 'nice', 'excellent', 'outstanding', 'superb',
+    'very good', 'very nice', 'very helpful', 'best', 'brilliant', 'satisfactory',
+    'nicely', 'overall good', 'good teacher', 'excellent teacher', 'nice mam',
+    'good mam', 'good sir', 'excellent mam', 'excellent sir', 'besttttt'];
+
+  const CLEAR_NEGATIVE = ['no', 'nil', 'na', 'n/a', 'none', 'nothing', 'not great',
+    'not good', 'poor', 'bad', 'worst'];
+
+  const toClassify = [];
+  const preClassified = new Map(); // index → 'positive' | 'negative'
+
+  rawComments.forEach((comment, idx) => {
+    const lower = comment.toLowerCase().trim().replace(/[^a-z\s]/g, '').trim();
+    const wordCount = comment.trim().split(/\s+/).length;
+
+    if (CLEAR_POSITIVE.some(kw => lower === kw || lower === kw + 's')) {
+      preClassified.set(idx, 'positive');
+    } else if (CLEAR_NEGATIVE.some(kw => lower === kw)) {
+      preClassified.set(idx, 'negative');
+    } else if (wordCount > 8) {
+      // Long comments (>8 words) — send to AI for proper classification
+      toClassify.push({ idx, comment });
+    } else {
+      // Medium comments — send to AI
+      toClassify.push({ idx, comment });
+    }
+  });
+
+  // Apply pre-classified
+  rawComments.forEach((comment, idx) => {
+    if (preClassified.has(idx)) {
+      if (preClassified.get(idx) === 'positive') appreciation.push(comment.trim());
+      else commentsNeedingAttention.push(comment.trim());
+    }
+  });
+
+  // AI classify the rest
+  if (toClassify.length > 0) {
     try {
-      const result = await classifyComment(comment.trim());
-      if (result.label === 'POSITIVE') {
-        appreciation.push(comment.trim());
-      } else {
-        commentsNeedingAttention.push(comment.trim());
+      const classifier = await getSentimentPipeline();
+      const BATCH_SIZE = 5;
+
+      for (let i = 0; i < toClassify.length; i += BATCH_SIZE) {
+        const batch = toClassify.slice(i, i + BATCH_SIZE);
+
+        for (const { comment } of batch) {
+          try {
+            const result = await classifier(comment.trim(), { truncation: true });
+            if (result[0].label === 'POSITIVE') {
+              appreciation.push(comment.trim());
+            } else {
+              commentsNeedingAttention.push(comment.trim());
+            }
+          } catch {
+            commentsNeedingAttention.push(comment.trim());
+          }
+        }
+
+        if (i + BATCH_SIZE < toClassify.length) {
+          await new Promise(r => setTimeout(r, 50));
+        }
       }
-    } catch {
-      // If classification fails, put in attention by default
-      commentsNeedingAttention.push(comment.trim());
+    } catch (err) {
+      console.warn('[AI] Classification failed, using fallback:', err.message);
+      toClassify.forEach(({ comment }) => {
+        if (comment?.trim()) commentsNeedingAttention.push(comment.trim());
+      });
     }
   }
 
   return { appreciation, commentsNeedingAttention };
 }
 
-/**
- * Test if AI is working
- */
 async function testGeminiConnection() {
   try {
     const classifier = await getSentimentPipeline();
@@ -85,4 +123,4 @@ async function testGeminiConnection() {
   }
 }
 
-module.exports = { analyzeCommentsWithAI, testGeminiConnection, classifyComment };
+module.exports = { analyzeCommentsWithAI, testGeminiConnection };

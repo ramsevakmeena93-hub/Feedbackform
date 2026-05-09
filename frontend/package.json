@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:main": "vite --config vite.main.config.js",
     "dev:hod": "vite --config vite.hod.config.js",
     "dev:vc": "vite --config vite.vc.config.js",
     "dev:faculty": "vite --config vite.faculty.config.js",
