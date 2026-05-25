@@ -76,12 +76,13 @@ async function analyzeCommentsWithAI(rawComments) {
   if (toClassify.length > 0) {
     try {
       const classifier = await getSentimentPipeline();
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 20; // Increased batch size
 
       for (let i = 0; i < toClassify.length; i += BATCH_SIZE) {
         const batch = toClassify.slice(i, i + BATCH_SIZE);
 
-        for (const { comment } of batch) {
+        // Process the entire batch in parallel
+        await Promise.all(batch.map(async ({ comment }) => {
           try {
             const result = await classifier(comment.trim(), { truncation: true });
             if (result[0].label === 'POSITIVE') {
@@ -92,11 +93,7 @@ async function analyzeCommentsWithAI(rawComments) {
           } catch {
             commentsNeedingAttention.push(comment.trim());
           }
-        }
-
-        if (i + BATCH_SIZE < toClassify.length) {
-          await new Promise(r => setTimeout(r, 50));
-        }
+        }));
       }
     } catch (err) {
       console.warn('[AI] Classification failed, using fallback:', err.message);

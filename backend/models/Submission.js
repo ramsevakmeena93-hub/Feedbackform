@@ -8,6 +8,10 @@ const submissionSchema = new mongoose.Schema({
   department: { type: String, default: '' },
   academicYear: { type: String, default: '' },
   semester: { type: String, default: '' },
+  session: { type: String, default: '' },           // "jul-dec" | "jan-may"
+  feedbackFormNo: { type: String, default: 'I' },   // "I" | "II"
+  submissionDate: { type: Date, default: null },     // date HOD submitted CSV
+  finalReportDate: { type: Date, default: null },    // date VC approved
   submittedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 

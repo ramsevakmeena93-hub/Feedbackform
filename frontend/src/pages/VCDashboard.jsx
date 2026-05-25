@@ -23,6 +23,7 @@ export default function VCDashboard() {
   const [search, setSearch]           = useState("");
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectComment, setRejectComment] = useState("");
+  const [activeTab, setActiveTab]     = useState("submissions"); // "submissions" | "analysis"
   const api = axios.create({ headers: { Authorization: `Bearer ${token}` } });
 
   useEffect(() => { fetchSubmissions(); }, []);
@@ -64,8 +65,44 @@ export default function VCDashboard() {
     { label:"Pending Review",    value:pendingCount,       icon:AlertTriangle, accent:"#9f1239" },
   ];
 
+  // ── Analysis data ──────────────────────────────────────────
+  // Department-wise analysis
+  const deptAnalysis = {};
+  submissions.forEach(sub => {
+    const dept = sub.hodId?.department || sub.department || "Unknown";
+    if (!deptAnalysis[dept]) deptAnalysis[dept] = { reports:[], ffis:[], attention:0, appreciation:0 };
+    (sub.reports||[]).forEach(r => {
+      deptAnalysis[dept].reports.push(r);
+      if (r.ffiScore) deptAnalysis[dept].ffis.push(r.ffiScore);
+      deptAnalysis[dept].attention   += r.attentionCount   || 0;
+      deptAnalysis[dept].appreciation += r.appreciationCount || 0;
+    });
+  });
+
+  // Faculty-wise analysis across all submissions
+  const facultyAnalysis = {};
+  submissions.forEach(sub => {
+    (sub.reports||[]).forEach(r => {
+      const key = r.facultyName || "Unknown";
+      if (!facultyAnalysis[key]) facultyAnalysis[key] = { reports:[], ffis:[], dept: sub.hodId?.department || sub.department || "—" };
+      facultyAnalysis[key].reports.push(r);
+      if (r.ffiScore) facultyAnalysis[key].ffis.push(r.ffiScore);
+    });
+  });
+
+  // Subject-wise analysis
+  const subjectAnalysis = {};
+  submissions.forEach(sub => {
+    (sub.reports||[]).forEach(r => {
+      const key = r.subjectCode || "Unknown";
+      if (!subjectAnalysis[key]) subjectAnalysis[key] = { name:r.facultyName||"—", programme:r.programme||"—", ffis:[], count:0 };
+      subjectAnalysis[key].count++;
+      if (r.ffiScore) subjectAnalysis[key].ffis.push(r.ffiScore);
+    });
+  });
+
   return (
-    <div className="min-h-screen bg-[#f8f9fc] flex flex-col">
+    <div className="min-h-screen bg-[#f8f9fc] dark:bg-slate-950 flex flex-col text-slate-800 dark:text-slate-100 transition-colors duration-200">
       <Navbar title="VC Dashboard" subtitle="MITS Gwalior" />
 
       <main className="flex-1 w-full max-w-screen-2xl mx-auto px-4 sm:px-6 py-8 space-y-7">
@@ -108,7 +145,158 @@ export default function VCDashboard() {
           ))}
         </div>
 
-        {/* Table */}
+        {/* Tabs */}
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+          {[
+            { id:"submissions", label:"Submissions" },
+            { id:"analysis",    label:"📊 Analysis" },
+          ].map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab===t.id?"bg-white shadow text-slate-800":"text-slate-500 hover:text-slate-700"}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── ANALYSIS TAB ── */}
+        {activeTab === "analysis" && (
+          <div className="space-y-6 animate-fade-in">
+
+            {/* Department-wise */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <h2 className="font-bold text-slate-800 text-base">Department-wise Analysis</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{Object.keys(deptAnalysis).length} departments</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="table-header">
+                    <tr>
+                      {["Department","Reports","Avg FFI","Appreciation","Needs Attention","Performance"].map(h=>(
+                        <th key={h} className="px-4 py-3 text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {Object.entries(deptAnalysis).sort((a,b)=>{
+                      const aAvg=a[1].ffis.length?a[1].ffis.reduce((s,v)=>s+v,0)/a[1].ffis.length:0;
+                      const bAvg=b[1].ffis.length?b[1].ffis.reduce((s,v)=>s+v,0)/b[1].ffis.length:0;
+                      return bAvg-aAvg;
+                    }).map(([dept,d])=>{
+                      const avg=d.ffis.length?(d.ffis.reduce((s,v)=>s+v,0)/d.ffis.length).toFixed(2):null;
+                      const ffiColor=avg?(parseFloat(avg)>=4?"text-emerald-600":parseFloat(avg)>=3?"text-amber-600":"text-red-600"):"text-slate-400";
+                      return (
+                        <tr key={dept} className="table-row">
+                          <td className="px-4 py-3 font-semibold text-slate-800 max-w-[200px] truncate">{dept}</td>
+                          <td className="px-4 py-3 text-slate-600">{d.reports.length}</td>
+                          <td className={`px-4 py-3 font-bold ${ffiColor}`}>{avg||"—"}</td>
+                          <td className="px-4 py-3 text-emerald-600 font-semibold">{d.appreciation}</td>
+                          <td className="px-4 py-3 text-amber-600 font-semibold">{d.attention}</td>
+                          <td className="px-4 py-3">
+                            {avg && (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 bg-slate-100 rounded-full h-2 max-w-[80px]">
+                                  <div className={`h-2 rounded-full ${parseFloat(avg)>=4?"bg-emerald-500":parseFloat(avg)>=3?"bg-amber-500":"bg-red-500"}`}
+                                    style={{width:`${Math.min((parseFloat(avg)/5)*100,100)}%`}}/>
+                                </div>
+                                <span className={`text-xs font-bold ${ffiColor}`}>{avg}</span>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Faculty-wise */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <h2 className="font-bold text-slate-800 text-base">Faculty-wise Analysis</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{Object.keys(facultyAnalysis).length} faculty members</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="table-header">
+                    <tr>
+                      {["Faculty Name","Department","Subjects","Avg FFI","Performance"].map(h=>(
+                        <th key={h} className="px-4 py-3 text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {Object.entries(facultyAnalysis).sort((a,b)=>{
+                      const aAvg=a[1].ffis.length?a[1].ffis.reduce((s,v)=>s+v,0)/a[1].ffis.length:0;
+                      const bAvg=b[1].ffis.length?b[1].ffis.reduce((s,v)=>s+v,0)/b[1].ffis.length:0;
+                      return bAvg-aAvg;
+                    }).map(([name,f])=>{
+                      const avg=f.ffis.length?(f.ffis.reduce((s,v)=>s+v,0)/f.ffis.length).toFixed(2):null;
+                      const ffiColor=avg?(parseFloat(avg)>=4?"text-emerald-600":parseFloat(avg)>=3?"text-amber-600":"text-red-600"):"text-slate-400";
+                      return (
+                        <tr key={name} className="table-row">
+                          <td className="px-4 py-3 font-semibold text-slate-800">{name}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500 max-w-[180px] truncate">{f.dept}</td>
+                          <td className="px-4 py-3 text-slate-600">{f.reports.length}</td>
+                          <td className={`px-4 py-3 font-bold ${ffiColor}`}>{avg||"—"}</td>
+                          <td className="px-4 py-3">
+                            {avg && (
+                              <span className={`text-xs font-bold px-2 py-1 rounded-full ${parseFloat(avg)>=4?"bg-emerald-100 text-emerald-700":parseFloat(avg)>=3?"bg-amber-100 text-amber-700":"bg-red-100 text-red-700"}`}>
+                                {parseFloat(avg)>=4?"Excellent":parseFloat(avg)>=3?"Good":"Needs Improvement"}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Subject-wise */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <h2 className="font-bold text-slate-800 text-base">Subject-wise Analysis</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{Object.keys(subjectAnalysis).length} subjects</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="table-header">
+                    <tr>
+                      {["Subject Code","Faculty","Programme","Sections","Avg FFI"].map(h=>(
+                        <th key={h} className="px-4 py-3 text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {Object.entries(subjectAnalysis).sort((a,b)=>{
+                      const aAvg=a[1].ffis.length?a[1].ffis.reduce((s,v)=>s+v,0)/a[1].ffis.length:0;
+                      const bAvg=b[1].ffis.length?b[1].ffis.reduce((s,v)=>s+v,0)/b[1].ffis.length:0;
+                      return bAvg-aAvg;
+                    }).map(([code,s])=>{
+                      const avg=s.ffis.length?(s.ffis.reduce((sv,v)=>sv+v,0)/s.ffis.length).toFixed(2):null;
+                      const ffiColor=avg?(parseFloat(avg)>=4?"text-emerald-600":parseFloat(avg)>=3?"text-amber-600":"text-red-600"):"text-slate-400";
+                      return (
+                        <tr key={code} className="table-row">
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-700">{code}</td>
+                          <td className="px-4 py-3 text-slate-700">{s.name}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">{s.programme}</td>
+                          <td className="px-4 py-3 text-slate-600">{s.count}</td>
+                          <td className={`px-4 py-3 font-bold ${ffiColor}`}>{avg||"—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SUBMISSIONS TAB ── */}
+        {activeTab === "submissions" && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {/* Table header */}
           <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/60">
@@ -229,6 +417,7 @@ export default function VCDashboard() {
             </div>
           )}
         </div>
+        )} {/* end submissions tab */}
       </main>
 
       <Footer />

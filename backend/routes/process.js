@@ -35,7 +35,7 @@ router.post('/upload-csv', authMiddleware, csvUpload.single('csv'), async (req, 
     // Return just the links — don't create DB records yet
     res.json({
       message: `Found ${entries.length} PDF links`,
-      links: entries.map(e => e.pdfLink),
+      links: entries, // Send full objects {pdfLink, responseCount}
       total: entries.length
     });
   } catch (err) {
@@ -54,11 +54,9 @@ router.post('/process-one', authMiddleware, async (req, res) => {
 
     // Check cache first
     const cacheKey = `pdf_${pdfLink}`;
-    const metaCacheKey = `meta_${pdfLink}`;
     let result = getCached(cacheKey);
-    let meta = getCached(metaCacheKey);
 
-    if (!result || !meta) {
+    if (!result) {
       // Download and analyze — retry once on rate limit
       let response;
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -70,7 +68,6 @@ router.post('/process-one', authMiddleware, async (req, res) => {
           break; // success
         } catch (err) {
           if (attempt < 3 && (err.response?.status === 429 || err.response?.status === 503)) {
-            // Rate limited — wait 3 seconds then retry
             await new Promise(r => setTimeout(r, 3000 * attempt));
             continue;
           }
@@ -78,15 +75,11 @@ router.post('/process-one', authMiddleware, async (req, res) => {
         }
       }
       const buffer = Buffer.from(response.data);
-
-      [result, meta] = await Promise.all([
-        analyzePDFBuffer(buffer),
-        extractMetaFromPDF(buffer)
-      ]);
-
+      result = await analyzePDFBuffer(buffer);
       setCache(cacheKey, result);
-      setCache(metaCacheKey, meta);
     }
+
+    const meta = result.meta || {};
 
     // Save to DB
     const report = await FacultyReport.create({
@@ -102,6 +95,7 @@ router.post('/process-one', authMiddleware, async (req, res) => {
       appreciationCount: result.appreciationCount,
       attentionCount: result.attentionCount,
       ffiScore: result.ffiScore ?? meta.ffiScore ?? null,
+      responseCount: req.body.responseCount ?? result.responseCount ?? meta.responseCount ?? null,
       status: 'processed',
       analyzedAt: result.analyzedAt
     });
@@ -194,24 +188,19 @@ router.post('/upload-pdfs', authMiddleware, pdfUpload.array('pdfs', 50), async (
         const fileBuffer = req.files[idx].buffer;
         const cacheKey = `pdf_buf_${crypto.createHash('md5').update(fileBuffer).digest('hex')}`;
         let result = getCached(cacheKey);
-        let pdfMeta = null;
 
         if (!result) {
           try {
-            // Extract both analysis AND metadata from the PDF buffer
-            [result, pdfMeta] = await Promise.all([
-              analyzePDFBuffer(fileBuffer),
-              extractMetaFromPDF(fileBuffer)
-            ]);
+            // Only one call needed!
+            result = await analyzePDFBuffer(fileBuffer);
             setCache(cacheKey, result);
-            setCache(`meta_buf_${cacheKey}`, pdfMeta);
           } catch (err) {
             await FacultyReport.findByIdAndUpdate(report._id, { status: 'error', errorMessage: err.message });
             return;
           }
-        } else {
-          pdfMeta = getCached(`meta_buf_${cacheKey}`) || {};
         }
+
+        const pdfMeta = result.meta || {};
 
         await FacultyReport.findByIdAndUpdate(report._id, {
           ...result,

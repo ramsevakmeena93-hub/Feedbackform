@@ -169,7 +169,7 @@ export default function AdminDashboard() {
 
   function handleLogout() {
     logout();
-    window.location.href = "http://localhost:5176/landing";
+    window.location.href = "/landing";
   }
 
   // Terminal

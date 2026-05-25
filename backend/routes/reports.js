@@ -69,10 +69,21 @@ router.post('/my/fix-metadata', authMiddleware, async (req, res) => {
   }
 });
 
-// Delete all reports for HOD
+// Delete all reports for HOD that are NOT approved by faculty AND not approved by VC
 router.delete('/my/all', authMiddleware, async (req, res) => {
   try {
-    const result = await FacultyReport.deleteMany({ hodId: req.user.id });
+    const Submission = require('../models/Submission');
+    // Find all approved submissions for this HOD
+    const approvedSubmissions = await Submission.find({ hodId: req.user.id, status: 'approved' });
+    const approvedReportIds = approvedSubmissions.flatMap(sub => sub.reports.map(r => r.toString()));
+
+    // Delete reports for this HOD that are NOT approved by faculty AND NOT in approvedReportIds
+    const result = await FacultyReport.deleteMany({
+      hodId: req.user.id,
+      status: { $ne: 'faculty_approved' },
+      _id: { $nin: approvedReportIds }
+    });
+
     res.json({ deleted: result.deletedCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -94,7 +105,21 @@ router.post('/bulk-send-to-faculty', authMiddleware, async (req, res) => {
         const fu = await User.findOne({ role: 'faculty', name: { $regex: report.facultyName.split(' ')[0], $options: 'i' } });
         if (fu) facultyUserId = fu._id;
       }
-      await FacultyReport.findByIdAndUpdate(report._id, { status: 'sent_to_faculty', sentToFacultyAt: new Date(), ...(facultyUserId ? { facultyUserId } : {}) });
+      const updated = await FacultyReport.findByIdAndUpdate(report._id, { status: 'sent_to_faculty', sentToFacultyAt: new Date(), ...(facultyUserId ? { facultyUserId } : {}) }, { new: true });
+      
+      // Create notification
+      if (facultyUserId) {
+        try {
+          const Notification = require('../models/Notification');
+          await Notification.create({
+            userId: facultyUserId,
+            type: 'sent_to_faculty',
+            message: `HOD has sent a feedback report for ${updated.subjectCode || 'your subject'} for your review. Please acknowledge it.`,
+            reportId: updated._id
+          });
+        } catch {}
+      }
+
       sent++;
     }
     res.json({ sent, total: reportIds.length });
@@ -107,9 +132,9 @@ router.post('/bulk-send-to-faculty', authMiddleware, async (req, res) => {
 router.get('/my/export', authMiddleware, async (req, res) => {
   try {
     const reports = await FacultyReport.find({ hodId: req.user.id });
-    const rows = [['S.No','Faculty Name','Subject Code','Programme','Semester','FFI Score','Appreciation','Attention','Status','Faculty Acknowledged','HOD Remarks','Action Taken','Year']];
+    const rows = [['S.No','Faculty Name','Subject Code','Programme','FFI Score','Appreciation','Attention','Status','Faculty Acknowledged','HOD Remarks','Action Taken','Year']];
     reports.forEach((r, i) => {
-      rows.push([i+1, r.facultyName||'', r.subjectCode||'', r.programme||'', r.semester||'', r.ffiScore?.toFixed(2)||'', r.appreciationCount||0, r.attentionCount||0, r.status||'', r.facultyAcknowledged?'Yes':'No', r.hodRemarks||'', r.actionTaken||'', r.academicYear||'']);
+      rows.push([i+1, r.facultyName||'', r.subjectCode||'', r.programme||'', r.ffiScore?.toFixed(2)||'', r.appreciationCount||0, r.attentionCount||0, r.status||'', r.facultyAcknowledged?'Yes':'No', r.hodRemarks||'', r.actionTaken||'', r.academicYear||'']);
     });
     const csv = rows.map(row => row.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     res.setHeader('Content-Type', 'text/csv');
@@ -147,6 +172,21 @@ router.post('/:id/send-to-faculty', authMiddleware, async (req, res) => {
       { new: true }
     );
 
+    // Create notification
+    if (facultyUserId) {
+      try {
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          userId: facultyUserId,
+          type: 'sent_to_faculty',
+          message: `HOD has sent your feedback report for ${updated.subjectCode || 'your subject'} for your review. Please acknowledge it.`,
+          reportId: updated._id
+        });
+      } catch (err) {
+        console.error('Failed to create faculty notification:', err);
+      }
+    }
+
     res.json(updated);
     log(req.user.id, 'sent_to_faculty', `Report sent to faculty: ${report.facultyName}`, { reportId: report._id }, 'success');
   } catch (err) {
@@ -157,7 +197,7 @@ router.post('/:id/send-to-faculty', authMiddleware, async (req, res) => {
 // Update editable fields
 router.patch('/:id/edit', authMiddleware, async (req, res) => {
   try {
-    const { programme, semester, goodComments, badComments, hodRemarks, facultyName, subjectCode, status } = req.body;
+    const { programme, semester, goodComments, badComments, hodRemarks, facultyName, subjectCode, status, actionTaken } = req.body;
     const update = {};
     if (programme !== undefined) update.programme = programme;
     if (semester !== undefined) update.semester = semester;
@@ -166,6 +206,7 @@ router.patch('/:id/edit', authMiddleware, async (req, res) => {
     if (hodRemarks !== undefined) update.hodRemarks = hodRemarks;
     if (facultyName !== undefined) update.facultyName = facultyName;
     if (subjectCode !== undefined) update.subjectCode = subjectCode;
+    if (actionTaken !== undefined) update.actionTaken = actionTaken;
     // Allow HOD to force-approve status
     if (status === 'faculty_approved') {
       update.status = 'faculty_approved';
@@ -178,6 +219,37 @@ router.patch('/:id/edit', authMiddleware, async (req, res) => {
       { new: true }
     );
     if (!report) return res.status(404).json({ error: 'Report not found' });
+
+    // Create notification for Faculty on force approval
+    if (status === 'faculty_approved') {
+      try {
+        let facultyUserId = report.facultyUserId;
+        if (!facultyUserId && report.facultyName) {
+          const User = require('../models/User');
+          const facultyUser = await User.findOne({
+            role: 'faculty',
+            name: { $regex: report.facultyName.split(' ')[0], $options: 'i' }
+          });
+          if (facultyUser) facultyUserId = facultyUser._id;
+        }
+        if (facultyUserId) {
+          const Notification = require('../models/Notification');
+          const User = require('../models/User');
+          const hodUser = await User.findById(req.user.id).select('name');
+          const hodName = hodUser ? hodUser.name : 'HOD';
+
+          await Notification.create({
+            userId: facultyUserId,
+            type: 'hod_force_approved',
+            message: `HOD ${hodName} has approved your feedback report for ${report.subjectCode || 'your subject'}. Reason: ${actionTaken || 'N/A'}`,
+            reportId: report._id
+          });
+        }
+      } catch (err) {
+        console.error('Failed to create HOD force-approval notification:', err);
+      }
+    }
+
     res.json(report);
   } catch (err) {
     res.status(500).json({ error: err.message });

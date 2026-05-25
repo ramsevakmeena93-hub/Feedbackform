@@ -444,12 +444,28 @@ async function extractMetaFromBuffer(buffer) {
   const dataRowItems = rowMap[dataY] || [];
   const ffiItem = dataRowItems.filter(i => /^\d+\.\d+$/.test(i.str)).sort((a, b) => b.x - a.x)[0];
   meta.ffiScore = ffiItem ? parseFloat(ffiItem.str) : null;
+
+  // Response Count: Look for an integer string to the LEFT of FFI score
+  const ffiX = ffiItem ? ffiItem.x : 540;
+  // Search for an integer between FFI and 250px to its left (matches your screenshot layout)
+  const respItem = dataRowItems.find(i => i.x < ffiX - 10 && i.x > ffiX - 250 && /^\d+$/.test(i.str));
+  meta.responseCount = respItem ? parseInt(respItem.str, 10) : null;
+
+  // GLOBAL FALLBACK Pattern Recognition
+  if (meta.responseCount === null) {
+     const fullText = items.map(i => i.str).join(" ");
+     const m = fullText.match(/Respon[sc]e[ \t]*[:\-]?\s*(\d+)/i) || 
+               fullText.match(/Resp[ \t]*[:\-]?\s*(\d+)/i) ||
+               fullText.match(/Ans[ \t]*[:\-]?\s*(\d+)/i);
+     if (m) meta.responseCount = parseInt(m[1], 10);
+  }
+
   return meta;
 }
 
 function extractMetaFromText(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const meta = { facultyName: '', subjectCode: '', programme: '', semester: '' };
+  const meta = { facultyName: '', subjectCode: '', programme: '', semester: '', responseCount: null };
   const patterns = {
     facultyName: [/faculty\s*name\s*[:\-]\s*(.+)/i, /name\s+of\s+faculty\s*[:\-]\s*(.+)/i, /faculty\s*[:\-]\s*(.+)/i, /teacher\s*[:\-]\s*(.+)/i],
     subjectCode: [/code\s*\/\s*subject\s*[:\-]\s*(.+)/i, /subject\s*code\s*[:\-]\s*([A-Z0-9\s\-]+)/i, /course\s*code\s*[:\-]\s*([A-Z0-9\s\-]+)/i, /code\s*[:\-]\s*([A-Z0-9\-]{3,15})/i],
@@ -548,9 +564,7 @@ async function analyzePDFBuffer(buffer) {
       const aiResult = await analyzeCommentsWithAI(allComments);
       appreciation = aiResult.appreciation;
       commentsNeedingAttention = aiResult.commentsNeedingAttention;
-      console.log(`[AI] Classified ${allComments.length} comments → ${appreciation.length} good, ${commentsNeedingAttention.length} bad`);
     } catch (aiErr) {
-      console.warn('[AI] Failed, falling back to color detection:', aiErr.message);
       const highlights = await extractHighlightedText(buffer);
       appreciation = highlights.appreciation;
       commentsNeedingAttention = highlights.commentsNeedingAttention;
@@ -561,7 +575,6 @@ async function analyzePDFBuffer(buffer) {
     commentsNeedingAttention = highlights.commentsNeedingAttention;
   }
 
-  // Calculate accurate percentages from ALL raw comments
   const commentPercentages = calculateCommentPercentages(allComments);
 
   return {
@@ -569,8 +582,10 @@ async function analyzePDFBuffer(buffer) {
     commentsNeedingAttention,
     appreciationCount: appreciation.length,
     attentionCount: commentsNeedingAttention.length,
-    commentPercentages,  // { "Excellent": 10, "Very Good": 25, "Good": 65 }
+    commentPercentages,
+    meta, // Include full meta object
     ffiScore: meta.ffiScore ?? null,
+    responseCount: meta.responseCount ?? null,
     analyzedAt: new Date()
   };
 }

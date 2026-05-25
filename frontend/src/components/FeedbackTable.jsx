@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Search, CheckCircle2, Clock, AlertCircle, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Eye } from "lucide-react";
+import ReportDetailModal from "./ReportDetailModal";
 
 const STATUS_CFG = {
   processed:       { cls:"badge-emerald", label:"Processed" },
@@ -89,6 +90,7 @@ export default function FeedbackTable({ reports, selected, onSelect, okReviewed,
   const reviewed = okReviewed || new Set();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [viewReport, setViewReport] = useState(null);
 
   const filtered = reports.filter(r =>
     !search || r.facultyName?.toLowerCase().includes(search.toLowerCase()) || r.subjectCode?.toLowerCase().includes(search.toLowerCase())
@@ -154,20 +156,16 @@ export default function FeedbackTable({ reports, selected, onSelect, okReviewed,
               <th className="px-3 py-3 text-left">Programme</th>
               <th className="px-3 py-3 text-center">Sem</th>
               <th className="px-3 py-3 text-center">FFI</th>
+              <th className="px-3 py-3 text-center">Resp.</th>
               <th className="px-3 py-3 text-left">Needs Attention</th>
               <th className="px-3 py-3 text-left">Appreciation</th>
               <th className="px-3 py-3 text-left">Action Taken</th>
-              <th className="px-3 py-3 text-left">Status</th>
-              <th className="px-3 py-3 text-left">Faculty</th>
-              <th className="px-3 py-3 text-left">Signature</th>
-              <th className="px-3 py-3 text-left">PDF</th>
-              <th className="px-3 py-3 text-left">OK</th>
+              <th className="px-3 py-3 text-left">View</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {paginated.map((report, idx) => {
               const { code, batch } = parseCodeBatch(report.subjectCode);
-              const statusCfg = STATUS_CFG[report.status] || STATUS_CFG.pending;
               return (
                 <tr key={report._id} className={`table-row align-top ${selected.includes(report._id) ? "bg-indigo-50/60" : ""}`}>
                   <td className="px-3 py-3"><input type="checkbox" checked={selected.includes(report._id)} onChange={() => toggleSelect(report._id)} disabled={report.status!=="processed" && report.status!=="faculty_approved"} className="rounded accent-indigo-600" /></td>
@@ -194,47 +192,19 @@ export default function FeedbackTable({ reports, selected, onSelect, okReviewed,
                       </span>
                     ) : <span className="text-slate-300">—</span>}
                   </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className="text-xs font-semibold text-slate-500">
+                      {report.responseCount ?? report.totalResponses ?? "—"}
+                    </span>
+                  </td>
                   <td className="px-3 py-3"><CommentList items={report.commentsNeedingAttention} color="yellow" /></td>
                   <td className="px-3 py-3"><CommentList items={report.appreciation} color="red" commentPercentages={report.commentPercentages} /></td>
                   <td className="px-3 py-3"><ActionTakenCell reportId={report._id} value={report.actionTaken} onSave={onFieldEdit} /></td>
-                  <td className="px-3 py-3 whitespace-nowrap">
-                    <span className={statusCfg.cls}>{statusCfg.label}</span>
-                    {report.status==="error" && <p className="text-xs text-red-500 mt-0.5 max-w-[100px] truncate" title={report.errorMessage}>{report.errorMessage}</p>}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs">
-                    {report.status==="faculty_approved" ? <span className="badge-emerald flex items-center gap-1"><CheckCircle2 size={10}/>Approved</span>
-                     : report.status==="sent_to_faculty" ? <span className="badge-indigo flex items-center gap-1"><Clock size={10}/>Pending</span>
-                     : <span className="text-slate-300">—</span>}
-                  </td>
                   <td className="px-3 py-3">
-                    <div className="flex flex-col gap-0.5">
-                      <div className="border-b border-slate-300 w-16 mb-0.5"></div>
-                      <span className="text-xs text-slate-500 font-medium">{report.facultyName||"—"}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3">
-                    {report.driveLink
-                      ? <a href={report.driveLink} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold hover:underline">View ↗</a>
-                      : <span className="text-slate-300 text-xs">—</span>}
-                  </td>
-                  <td className="px-3 py-3">
-                    {report.status==="processed" ? (
-                      reviewed.has(report._id)
-                        ? <span className="badge-indigo text-xs">Sent</span>
-                        : <button onClick={() => onInlineOk && onInlineOk(report._id)} className="btn btn-primary btn-sm py-1 px-3 text-xs">OK</button>
-                    ) : report.status==="sent_to_faculty" ? (
-                      <div className="flex flex-col gap-1">
-                        <span className="badge-indigo text-xs flex items-center gap-1"><Clock size={9}/>Awaiting</span>
-                        {onHODApprove && (
-                          <button onClick={() => onHODApprove(report._id)}
-                            className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-lg font-semibold transition-colors">
-                            HOD Approve
-                          </button>
-                        )}
-                      </div>
-                    ) : report.status==="faculty_approved" ? (
-                      <span className="badge-emerald text-xs flex items-center gap-1"><CheckCircle2 size={9}/>Ready</span>
-                    ) : <span className="text-slate-300 text-xs">—</span>}
+                    <button onClick={() => setViewReport(report)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-xl transition-colors border border-indigo-200">
+                      <Eye size={12}/> View
+                    </button>
                   </td>
                 </tr>
               );
@@ -296,6 +266,16 @@ export default function FeedbackTable({ reports, selected, onSelect, okReviewed,
             ))}
           </div>
         </div>
+      )}
+
+      {/* Report Detail Modal */}
+      {viewReport && (
+        <ReportDetailModal
+          report={viewReport}
+          onClose={() => setViewReport(null)}
+          onSendToFaculty={onSendToFaculty ? (id) => { onSendToFaculty(id); } : null}
+          onHODApprove={onHODApprove ? (id, reason) => { onHODApprove(id, reason); } : null}
+        />
       )}
     </div>
   );

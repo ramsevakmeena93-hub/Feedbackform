@@ -4,6 +4,7 @@ import { LogOut, Bell, ChevronDown, Upload, Check, X, Settings, CheckCheck, Arch
 import { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
+import mitsLogo from "../assets/mits-logo.png";
 
 const ROLE_CFG = {
   hod:     { grad:"from-indigo-600 to-violet-600",  badge:"bg-indigo-100 text-indigo-700",  label:"HOD",     home:"/hod"     },
@@ -63,13 +64,37 @@ export default function Navbar({ title, subtitle }) {
     } catch {}
   }
 
+  async function handleNotifClick(n) {
+    if (!n.read) {
+      try {
+        await api().patch(`/api/notifications/${n._id}/read`);
+        setNotifications(prev => prev.map(item => item._id === n._id ? {...item, read:true} : item));
+        setUnreadCount(c => Math.max(0, c - 1));
+      } catch {}
+    }
+    closeAll();
+    if (user?.role === 'faculty') {
+      if (n.type === 'vc_approved') {
+        navigate('/faculty/history');
+      } else {
+        navigate('/faculty');
+      }
+    } else if (user?.role === 'hod') {
+      if (n.type === 'vc_approved' || n.type === 'vc_rejected') {
+        navigate('/hod/history');
+      } else {
+        navigate('/hod');
+      }
+    }
+  }
+
   const role = user?.role || "hod";
   const cfg  = ROLE_CFG[role] || ROLE_CFG.hod;
 
   function handleLogout() {
     logout();
     // Redirect to main landing page
-    window.location.href = "http://localhost:5176/landing";
+    window.location.href = "/landing";
   }
 
   function handleSigFile(e) {
@@ -108,24 +133,31 @@ export default function Navbar({ title, subtitle }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-200">
+      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 shadow-sm transition-colors duration-200">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6">
-          <div className="h-14 flex items-center gap-4">
+          <div className="h-16 flex items-center gap-4">
 
             {/* ── Logo (left) ── */}
             <button onClick={() => navigate(cfg.home)}
-              className={`w-8 h-8 bg-gradient-to-br ${cfg.grad} rounded-xl flex items-center justify-center text-white font-black text-sm shadow hover:scale-105 transition-all shrink-0`}>
-              M
+              className="flex items-center gap-2.5 hover:opacity-90 transition-opacity shrink-0 group">
+              <div className="w-9 h-9 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl flex items-center justify-center p-1 shadow-sm group-hover:scale-105 transition-transform">
+                <img src={mitsLogo} alt="MITS Logo" className="w-full h-full object-contain" />
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="text-slate-900 dark:text-slate-50 font-extrabold text-xs uppercase tracking-wider leading-none">MITS Gwalior</span>
+                <span className="text-slate-400 dark:text-slate-500 font-semibold text-[8px] uppercase tracking-widest mt-0.5 leading-none">Feedback System</span>
+              </div>
             </button>
 
-            {/* ── Page title (left, after logo) ── */}
+            {/* Divider */}
+            <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-800 mx-1 shrink-0" />
+
+            {/* ── Page title ── */}
             <div className="hidden sm:flex items-center gap-2 text-sm min-w-0 flex-1">
-              <span className="text-slate-400 dark:text-slate-500 font-medium text-xs uppercase tracking-widest">MITS</span>
-              <span className="text-slate-300 dark:text-slate-600">›</span>
-              <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{title || "Dashboard"}</span>
-              {subtitle && <><span className="text-slate-300 dark:text-slate-600">›</span><span className="text-slate-500 dark:text-slate-400 text-xs truncate">{subtitle}</span></>}
+              <span className="font-bold text-slate-800 dark:text-slate-100 truncate">{title || "Dashboard"}</span>
+              {subtitle && <><span className="text-slate-300 dark:text-slate-700">›</span><span className="text-slate-500 dark:text-slate-400 text-xs truncate font-medium">{subtitle}</span></>}
             </div>
-            <div className="sm:hidden flex-1 font-semibold text-slate-700 dark:text-slate-200 text-sm truncate">{title}</div>
+            <div className="sm:hidden flex-1 font-bold text-slate-800 dark:text-slate-100 text-sm truncate pl-2 border-l border-slate-200 dark:border-slate-850">{title}</div>
 
             {/* ── Nav links (RIGHT side, before actions) ── */}
             <nav className="hidden md:flex items-center gap-0.5 shrink-0">
@@ -178,7 +210,7 @@ export default function Navbar({ title, subtitle }) {
                           <p className="text-xs text-slate-400">No notifications yet</p>
                         </div>
                       ) : notifications.map(n => (
-                        <div key={n._id} className={`px-4 py-3 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors ${!n.read?"bg-indigo-50/50 dark:bg-indigo-900/20":""}`}>
+                        <div key={n._id} onClick={() => handleNotifClick(n)} className={`px-4 py-3 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${!n.read?"bg-indigo-50/50 dark:bg-indigo-900/20":""}`}>
                           <div className="flex items-start gap-2.5">
                             <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.read?"bg-indigo-500":"bg-slate-200 dark:bg-slate-600"}`}/>
                             <div className="min-w-0">

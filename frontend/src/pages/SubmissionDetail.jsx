@@ -158,6 +158,7 @@ export default function SubmissionDetail() {
                     <th className="px-4 py-3 text-center">Sem</th>
                     <th className="px-4 py-3 text-center">Year</th>
                     <th className="px-4 py-3 text-center">FFI</th>
+                    <th className="px-4 py-3 text-center">Resp.</th>
                     <th className="px-4 py-3 text-left">Appreciation</th>
                     <th className="px-4 py-3 text-left">Needs Attention</th>
                     <th className="px-4 py-3 text-left">HOD Remarks</th>
@@ -191,6 +192,9 @@ export default function SubmissionDetail() {
                           {r.ffiScore!=null
                             ? <span className={`text-sm font-bold ${r.ffiScore>=4?"text-emerald-600":r.ffiScore>=3?"text-amber-600":"text-red-600"}`}>{r.ffiScore.toFixed(2)}</span>
                             : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-xs font-semibold text-slate-600">{r.responseCount ?? r.totalResponses ?? "—"}</span>
                         </td>
                         {/* Appreciation — percentages + long comments */}
                         <td className="px-4 py-3 max-w-[160px]">

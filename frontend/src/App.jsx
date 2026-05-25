@@ -21,20 +21,18 @@ const APP_ROLE = (() => {
 function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="w-8 h-8 border-4 border-blue-900 border-t-transparent rounded-full animate-spin"></div></div>;
-  if (!user) return <Navigate to="/login" />;
-  if (APP_ROLE && user.role !== APP_ROLE) return <Navigate to="/login" />;
-  if (role && user.role !== role) return <Navigate to="/login" />;
+  if (!user) return <Navigate to={`/landing?portal=${role}`} />;
+  if (role && user.role !== role) return <Navigate to={`/landing?portal=${role}`} />;
   return children;
 }
 
 function RoleRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="w-8 h-8 border-4 border-blue-900 border-t-transparent rounded-full animate-spin"></div></div>;
-  // Main portal (no role lock) — always show landing page
-  if (!APP_ROLE) return <Navigate to="/landing" />;
-  if (!user) return <Navigate to="/login" />;
-  if (user.role !== APP_ROLE) return <Navigate to="/login" />;
-  return <Navigate to={user.role === 'vc' ? '/vc' : user.role === 'faculty' ? '/faculty' : user.role === 'admin' ? '/admin' : '/hod'} />;
+  if (user) {
+    return <Navigate to={user.role === 'vc' ? '/vc' : user.role === 'faculty' ? '/faculty' : user.role === 'admin' ? '/admin' : '/hod'} />;
+  }
+  return <Navigate to="/landing" />;
 }
 
 export default function App() {
@@ -44,8 +42,8 @@ export default function App() {
         <Route path="/" element={<RoleRedirect />} />
         <Route path="/landing" element={<Landing />} />
         <Route path="/developer" element={<Developer />} />
-        <Route path="/login" element={<Login appRole={APP_ROLE} />} />
-        <Route path="/register" element={<Register appRole={APP_ROLE} />} />
+        <Route path="/login" element={<Navigate to="/landing" />} />
+        <Route path="/register" element={<Navigate to="/landing" />} />
         <Route path="/hod" element={<ProtectedRoute role="hod"><HODDashboard /></ProtectedRoute>} />
         <Route path="/hod/report/:id" element={<ProtectedRoute role="hod"><ReportDetail /></ProtectedRoute>} />
         <Route path="/hod/history" element={<ProtectedRoute role="hod"><History /></ProtectedRoute>} />
@@ -53,6 +51,7 @@ export default function App() {
         <Route path="/vc/submission/:id" element={<ProtectedRoute role="vc"><SubmissionDetail /></ProtectedRoute>} />
         <Route path="/vc/history" element={<ProtectedRoute role="vc"><History /></ProtectedRoute>} />
         <Route path="/faculty" element={<ProtectedRoute role="faculty"><FacultyDashboard /></ProtectedRoute>} />
+        <Route path="/faculty/history" element={<ProtectedRoute role="faculty"><History /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
       </Routes>
     </AuthProvider>

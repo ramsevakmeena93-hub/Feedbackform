@@ -35,9 +35,9 @@ export default function CSVReviewModal({ currentData, currentIdx, total, process
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {processing ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Loader size={32} className="animate-spin text-indigo-500" />
-              <p className="text-gray-500 text-sm">Loading PDF {currentIdx + 1}...</p>
-              <p className="text-gray-400 text-xs">Downloading and analyzing from Google Drive</p>
+              <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"/>
+              <p className="text-slate-600 text-sm font-semibold">Loading PDF {currentIdx + 1} of {total}</p>
+              <p className="text-slate-400 text-xs text-center max-w-xs">Downloading and analyzing from Google Drive...</p>
             </div>
           ) : !currentData ? (
             <div className="text-center py-16 text-gray-400">Waiting...</div>
@@ -67,12 +67,21 @@ export default function CSVReviewModal({ currentData, currentIdx, total, process
                     </p>
                   </div>
                   {currentData.ffiScore != null && (
-                    <div className="text-right shrink-0">
-                      <span className={`text-2xl font-bold ${
-                        currentData.ffiScore >= 4 ? "text-green-600" :
-                        currentData.ffiScore >= 3 ? "text-yellow-600" : "text-red-600"
-                      }`}>{currentData.ffiScore.toFixed(2)}</span>
-                      <p className="text-xs text-gray-400">FFI Score</p>
+                    <div className="flex gap-4 items-center shrink-0">
+                      <div className="text-right">
+                        <span className="text-xl font-bold text-slate-700">
+                          {currentData.responseCount ?? currentData.totalResponses ?? "0"}
+                        </span>
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Responses</p>
+                      </div>
+                      <div className="w-px h-10 bg-slate-200"></div>
+                      <div className="text-right">
+                        <span className={`text-2xl font-bold ${
+                          currentData.ffiScore >= 4 ? "text-green-600" :
+                          currentData.ffiScore >= 3 ? "text-amber-600" : "text-red-600"
+                        }`}>{currentData.ffiScore.toFixed(2)}</span>
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">FFI Score</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -145,14 +154,32 @@ export default function CSVReviewModal({ currentData, currentIdx, total, process
               }`} />
             ))}
           </div>
-          <button
-            onClick={onOk}
-            disabled={processing}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-semibold transition text-sm"
-          >
-            {isLast ? "Done - All Reviewed" : "OK"}
-            {!isLast && <ChevronRight size={16} />}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const proceed = async () => {
+                  for (let i = currentIdx; i < total; i++) {
+                    await onOk();
+                    // Small delay to let UI breathe
+                    await new Promise(r => setTimeout(r, 100));
+                  }
+                };
+                proceed();
+              }}
+              disabled={processing}
+              className="px-5 py-2.5 text-sm font-semibold text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 rounded-xl transition"
+            >
+              Process All
+            </button>
+            <button
+              onClick={onOk}
+              disabled={processing}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-semibold transition text-sm shadow-lg shadow-indigo-200"
+            >
+              {isLast ? "Done - All Reviewed" : "OK"}
+              {!isLast && <ChevronRight size={16} />}
+            </button>
+          </div>
         </div>
       </div>
     </div>

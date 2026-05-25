@@ -34,6 +34,11 @@ function ReportCard({ report, onAcknowledge, acknowledging }) {
                   FFI: {report.ffiScore.toFixed(2)}
                 </span>
               )}
+              {(report.responseCount ?? report.totalResponses) != null && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                  Resp: {report.responseCount ?? report.totalResponses}
+                </span>
+              )}
             </div>
             <h3 className="font-bold text-slate-800 text-base">{report.facultyName || 'Your Report'}</h3>
             <p className="text-slate-500 text-sm mt-0.5">
@@ -142,8 +147,8 @@ function ReportCard({ report, onAcknowledge, acknowledging }) {
   );
 }
 
-// ── ANALYSIS SECTION ─────────────────────────────────────────────
-function AnalysisSection({ summary }) {
+// ── ANALYSIS SECTION (COMBINED BASIC & ADVANCED) ─────────────────────────────────────────────
+function AnalysisSection({ summary, advancedData }) {
   if (!summary) return null;
   const { avgFFI, grade, totalReports, totalAppreciation, totalAttention, ffiBySubject, commentPercentages } = summary;
 
@@ -154,109 +159,296 @@ function AnalysisSection({ summary }) {
   }));
 
   const pieData = [
-    { name: 'Appreciation', value: totalAppreciation, fill: '#ef4444' },
-    { name: 'Needs Attention', value: totalAttention, fill: '#f59e0b' },
+    { name: 'Appreciation', value: totalAppreciation, fill: '#6366f1' }, // Indigo
+    { name: 'Needs Attention', value: totalAttention, fill: '#f59e0b' },   // Amber
   ].filter(d => d.value > 0);
 
   return (
-    <div className="space-y-5">
-      {/* Summary cards */}
+    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
+      {/* ── 1. Improvement Banner ── */}
+      {advancedData?.improvement && (
+        <div className={`p-4 rounded-2xl border-l-4 backdrop-blur-md shadow-sm flex items-center justify-between gap-4 flex-wrap transition-all duration-300 ${
+          advancedData.improvement.direction === 'up' 
+            ? 'border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-350 border border-emerald-100 dark:border-emerald-900/40' 
+            : advancedData.improvement.direction === 'down' 
+            ? 'border-l-rose-500 bg-rose-50/50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-350 border border-rose-100 dark:border-rose-900/40' 
+            : 'border-l-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-350 border border-indigo-100 dark:border-indigo-900/40'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              advancedData.improvement.direction === 'up' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-rose-100 dark:bg-rose-900/30'
+            }`}>
+              {advancedData.improvement.direction === 'up' ? <TrendingUp size={20} className="text-emerald-600 dark:text-emerald-400"/> : <TrendingDown size={20} className="text-rose-600 dark:text-rose-400"/>}
+            </div>
+            <div>
+              <h4 className="font-bold text-sm tracking-tight text-slate-800 dark:text-slate-100">FFI Improvement Tracker</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {advancedData.improvement.direction === 'up'
+                  ? `Your teaching score improved by ${advancedData.improvement.diff} points from ${advancedData.improvement.from} to ${advancedData.improvement.to}!`
+                  : advancedData.improvement.direction === 'down'
+                  ? `Your teaching score decreased by ${Math.abs(advancedData.improvement.diff)} points from ${advancedData.improvement.from} to ${advancedData.improvement.to}.`
+                  : `Your teaching score remained consistent between ${advancedData.improvement.from} and ${advancedData.improvement.to}.`}
+              </p>
+            </div>
+          </div>
+          <span className={`text-xl font-black px-3.5 py-1 rounded-xl bg-white dark:bg-slate-900 border shadow-sm ${
+            advancedData.improvement.diff > 0 ? 'text-emerald-600 border-emerald-100 dark:border-emerald-900' : advancedData.improvement.diff < 0 ? 'text-rose-600 border-rose-100 dark:border-rose-900' : 'text-slate-400 border-slate-200'
+          }`}>
+            {advancedData.improvement.diff > 0 ? '+' : ''}{advancedData.improvement.diff}
+          </span>
+        </div>
+      )}
+
+      {/* ── 2. Performance Stats Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card p-4 text-center border-blue-200 bg-blue-50">
-          <TrendingUp className="mx-auto text-blue-700 mb-2" size={20} />
-          <p className="text-2xl font-bold text-blue-900">{avgFFI}</p>
-          <p className="text-xs text-blue-600 font-medium">Avg FFI Score</p>
-        </div>
-        <div className="card p-4 text-center border-purple-200 bg-purple-50">
-          <Award className="mx-auto text-purple-700 mb-2" size={20} />
-          <GradeBadge grade={grade} />
-          <p className="text-xs text-purple-600 font-medium mt-1">Performance Grade</p>
-        </div>
-        <div className="card p-4 text-center border-red-200 bg-red-50">
-          <BookOpen className="mx-auto text-red-600 mb-2" size={20} />
-          <p className="text-2xl font-bold text-red-700">{totalAppreciation}</p>
-          <p className="text-xs text-red-600 font-medium">Appreciation Comments</p>
-        </div>
-        <div className="card p-4 text-center border-amber-200 bg-amber-50">
-          <AlertTriangle className="mx-auto text-amber-600 mb-2" size={20} />
-          <p className="text-2xl font-bold text-amber-700">{totalAttention}</p>
-          <p className="text-xs text-amber-600 font-medium">Attention Comments</p>
-        </div>
+        {[
+          { label: 'Average FFI Score', value: avgFFI, icon: TrendingUp, color: avgFFI >= 4.0 ? 'text-emerald-650 dark:text-emerald-400' : avgFFI >= 3.0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400', bg: 'from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20', border: 'border-emerald-100 dark:border-emerald-900/30' },
+          { label: 'Performance Grade', value: <span className="flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl px-3.5 py-0.5 text-lg font-black shadow-sm ring-4 ring-indigo-100 dark:ring-indigo-900/20">{grade}</span>, icon: Award, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-50 to-violet-50 dark:from-indigo-950/20 dark:to-violet-950/20', border: 'border-indigo-100 dark:border-indigo-900/30' },
+          { label: 'Appreciation Comments', value: totalAppreciation, icon: BookOpen, color: 'text-indigo-600 dark:text-indigo-400', bg: 'from-indigo-50 to-violet-50 dark:from-indigo-950/20 dark:to-violet-950/20', border: 'border-indigo-100 dark:border-indigo-900/30' },
+          { label: 'Needs Attention', value: totalAttention, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-450', bg: 'from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20', border: 'border-amber-100 dark:border-amber-900/30' },
+        ].map((card, idx) => (
+          <div key={idx} className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group`}>
+            <div className="flex justify-between items-start mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{card.label}</span>
+              <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex items-center justify-center">
+                <card.icon size={15} className={card.color}/>
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <div className={`text-2xl font-black tracking-tight ${card.color}`}>{card.value}</div>
+            </div>
+            {/* Soft background glow */}
+            <div className={`absolute -right-6 -bottom-6 w-16 h-16 bg-gradient-to-br ${card.bg} rounded-full blur-xl opacity-80 group-hover:scale-125 transition-transform`}></div>
+          </div>
+        ))}
       </div>
 
-      {/* Charts */}
+      {/* ── 3. Visual Analytics Charts Row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* FFI by Subject */}
+        {/* FFI Timeline Trend */}
+        {advancedData?.trend?.length > 0 && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 hover:shadow-md transition-shadow">
+            <h3 className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+              <span>📈 FFI Timeline & Growth</span>
+            </h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={advancedData.trend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <XAxis dataKey="period" tick={{ fontSize: 10 }} stroke="#94a3b8"/>
+                <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#94a3b8"/>
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.95)', border: 'none', borderRadius: '12px', color: '#fff' }}
+                  labelStyle={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '4px' }}
+                  itemStyle={{ fontSize: '12px' }}
+                />
+                <Line type="monotone" dataKey="avgFFI" stroke="#6366f1" strokeWidth={3} dot={{ fill: '#6366f1', r: 4, strokeWidth: 1 }} activeDot={{ r: 6 }}/>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* FFI Score by Subject */}
         {ffiChartData.length > 0 && (
-          <div className="card p-5">
-            <p className="section-title mb-4">FFI Score by Subject</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={ffiChartData} margin={{ left: -20 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v, n, p) => [v, p.payload.fullName]} />
-                <Bar dataKey="FFI" radius={[4, 4, 0, 0]}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 hover:shadow-md transition-shadow">
+            <h3 className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+              <span>🎯 FFI Score by Subject</span>
+            </h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={ffiChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8"/>
+                <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#94a3b8"/>
+                <Tooltip 
+                  formatter={(v, n, p) => [v.toFixed(2), p.payload.fullName]}
+                  contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.95)', border: 'none', borderRadius: '12px', color: '#fff' }}
+                />
+                <Bar dataKey="FFI" radius={[6, 6, 0, 0]} maxBarSize={40}>
                   {ffiChartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.FFI >= 4 ? '#15803d' : entry.FFI >= 3 ? '#d97706' : '#dc2626'} />
+                    <Cell key={i} fill={entry.FFI >= 4 ? '#10b981' : entry.FFI >= 3 ? '#f59e0b' : '#ef4444'} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
+      </div>
 
-        {/* Comment distribution */}
+      {/* ── 4. Deeper Benchmarking & Sentiment Distribution ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Peer Benchmarking */}
+        {advancedData && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 hover:shadow-md transition-shadow flex flex-col justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-widest mb-4">
+                👥 Anonymous Peer Comparison
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl p-4 text-center group hover:bg-indigo-50 transition-colors">
+                  <p className="text-[10px] text-indigo-650 dark:text-indigo-400 font-bold uppercase mb-1">Your Avg FFI</p>
+                  <p className={`text-3xl font-black ${advancedData.myAvgFFI >= advancedData.deptAvgFFI ? 'text-emerald-600' : 'text-amber-500'}`}>{advancedData.myAvgFFI}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/55 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center hover:bg-slate-100/50 transition-colors">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Dept Avg FFI</p>
+                  <p className="text-3xl font-black text-slate-600 dark:text-slate-300">{advancedData.deptAvgFFI}</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 p-3.5 bg-slate-50 dark:bg-slate-900/35 border border-slate-150 dark:border-slate-800 rounded-xl text-center">
+              {advancedData.myAvgFFI >= advancedData.deptAvgFFI ? (
+                <p className="text-xs text-emerald-700 dark:text-emerald-450 font-semibold flex items-center justify-center gap-1.5">
+                  <CheckCircle size={14}/> Outstanding! You are performing above the department average by {(advancedData.myAvgFFI - advancedData.deptAvgFFI).toFixed(2)} points.
+                </p>
+              ) : (
+                <p className="text-xs text-amber-600 dark:text-amber-450 font-semibold flex items-center justify-center gap-1.5">
+                  <AlertTriangle size={14}/> Note: You are currently {(advancedData.deptAvgFFI - advancedData.myAvgFFI).toFixed(2)} points below department average.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sentiment Pie Distribution */}
         {pieData.length > 0 && (
-          <div className="card p-5">
-            <p className="section-title mb-4">Comment Distribution</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
-                  {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 hover:shadow-md transition-shadow">
+            <h3 className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-widest mb-4">
+              📊 Comment Distribution Sentiment
+            </h3>
+            <div className="flex flex-col sm:flex-row items-center justify-around gap-4">
+              <ResponsiveContainer width="50%" height={160}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={65} dataKey="value" stroke="none">
+                    {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [v, 'CommentsCount']} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-2.5 w-full sm:w-1/2">
+                {pieData.map(item => (
+                  <div key={item.name} className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.fill }}/>
+                      <span className="text-xs font-semibold text-slate-650 dark:text-slate-350">{item.name}</span>
+                    </div>
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                      {item.value} comments ({Math.round((item.value / (totalAppreciation + totalAttention)) * 100)}%)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Appreciation breakdown */}
-      {Object.keys(commentPercentages).length > 0 && (
-        <div className="card p-5">
-          <p className="section-title mb-4">Appreciation Quality Breakdown</p>
-          <div className="space-y-3">
-            {Object.entries(commentPercentages).sort((a, b) => b[1] - a[1]).map(([label, pct]) => (
-              <div key={label} className="flex items-center gap-4">
-                <span className="text-sm font-semibold text-slate-700 w-24 shrink-0">{label}</span>
-                <div className="flex-1 bg-slate-100 rounded-full h-3">
-                  <div className="bg-gradient-to-r from-blue-900 to-blue-600 h-3 rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+      {/* ── 5. Teaching Dimensions & Appreciation Breakdown ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Teaching Weakness Areas */}
+        {advancedData?.dimensions && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 hover:shadow-md transition-shadow">
+            <h3 className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+              <span>🎯 Teaching Dimension Complaints Tracker</span>
+              <span className="text-[10px] text-slate-400 font-medium normal-case tracking-normal">Lower is better</span>
+            </h3>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-4">Tracking complaints matching core student complaint themes</p>
+            <div className="space-y-3">
+              {Object.entries(advancedData.dimensions).map(([dim, count]) => (
+                <div key={dim} className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 w-24 shrink-0">{dim}</span>
+                  <div className="flex-1 bg-slate-100 dark:bg-slate-900 rounded-full h-2.5 overflow-hidden">
+                    <div className={`h-2.5 rounded-full transition-all ${
+                      count === 0 ? 'bg-emerald-500' : count <= 2 ? 'bg-amber-500' : 'bg-rose-500'
+                    }`} style={{ width: count === 0 ? '5%' : `${Math.min(count * 20, 100)}%` }}></div>
+                  </div>
+                  <span className={`text-xs font-black w-8 text-right flex items-center justify-end ${
+                    count === 0 ? 'text-emerald-600 dark:text-emerald-400' : count <= 2 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-550 dark:text-rose-400'
+                  }`}>
+                    {count === 0 ? <CheckCircle size={12}/> : count}
+                  </span>
                 </div>
-                <span className="text-sm font-bold text-blue-900 w-12 text-right">{pct}%</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Appreciation Breakdown */}
+        {Object.keys(commentPercentages).length > 0 && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 hover:shadow-md transition-shadow flex flex-col justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-widest mb-4">
+                ⭐ Student Appreciation Quality Breakdown
+              </h3>
+              <div className="space-y-3.5">
+                {Object.entries(commentPercentages).sort((a, b) => b[1] - a[1]).map(([label, pct]) => (
+                  <div key={label} className="flex items-center gap-4">
+                    <span className="text-xs font-bold text-slate-650 dark:text-slate-400 w-20 shrink-0">{label}</span>
+                    <div className="flex-1 bg-slate-100 dark:bg-slate-900 rounded-full h-3 overflow-hidden">
+                      <div className="bg-gradient-to-r from-indigo-650 to-indigo-500 h-3 rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                    </div>
+                    <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 w-12 text-right">{pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 dark:text-slate-550 italic mt-4 text-center">
+              Student feedback is categorized using semantic keywords to measure appreciation levels.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ── 6. Smart Recommendations ── */}
+      {advancedData?.recommendations?.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 hover:shadow-md transition-shadow">
+          <h3 className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+            <span>💡 AI-Powered Insights & Recommendations</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {advancedData.recommendations.map((rec, i) => (
+              <div key={i} className="flex gap-3.5 items-start bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-855/80 rounded-2xl p-4 hover:shadow-sm transition-all group">
+                <span className="text-2xl shrink-0 p-2 bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 rounded-xl group-hover:scale-105 transition-transform">{rec.icon}</span>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800 dark:text-slate-100 text-sm tracking-tight">{rec.title}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 leading-relaxed">{rec.desc}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Performance insight */}
-      <div className="card p-5 bg-gradient-to-r from-blue-900 to-slate-900 text-white">
-        <p className="font-bold text-lg mb-2">Performance Insight</p>
-        <p className="text-blue-200 text-sm">
-          {avgFFI >= 4.0
-            ? `Excellent performance! Your average FFI of ${avgFFI} reflects outstanding teaching quality. Students appreciate your clarity and engagement.`
-            : avgFFI >= 3.5
-            ? `Good performance with FFI ${avgFFI}. Students value your teaching. Focus on the attention comments to further improve.`
-            : avgFFI >= 3.0
-            ? `Satisfactory performance (FFI ${avgFFI}). Review the comments needing attention and consider addressing student concerns.`
-            : `FFI ${avgFFI} indicates areas for improvement. Please review student feedback carefully and discuss with HOD.`
-          }
-        </p>
-        <div className="mt-3 flex items-center gap-2">
-          <span className="text-xs text-blue-300">Based on {totalReports} report{totalReports > 1 ? 's' : ''}</span>
-          <span className="text-blue-500">·</span>
-          <span className="text-xs text-blue-300">{totalAppreciation + totalAttention} total comments analyzed</span>
+      {/* ── 7. Career Life Banner ── */}
+      <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-3xl shadow-xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px] group">
+        <div className="relative z-10">
+          <p className="font-extrabold text-lg tracking-tight">Lifetime Career Analytics Summary</p>
+          <p className="text-indigo-200 text-xs mt-1 max-w-xl leading-relaxed">
+            {avgFFI >= 4.0
+              ? `Outstanding teaching track record! Your FFI average of ${avgFFI} reflects exceptional pedagogical delivery and classroom management. Students highly value your methods.`
+              : avgFFI >= 3.5
+              ? `Solid teaching profile! Your FFI average is ${avgFFI}. Keep refining your classroom examples and pacing to scale new heights of academic excellence.`
+              : `A consistent FFI average of ${avgFFI}. Review student suggestions carefully to further strengthen engagement and learning outcomes.`}
+          </p>
         </div>
+        <div className="grid grid-cols-3 gap-4 text-center mt-6 pt-4 border-t border-white/10 relative z-10">
+          <div>
+            <p className="text-2xl font-black text-indigo-300">{advancedData?.totalReports || totalReports}</p>
+            <p className="text-white/60 text-[9px] uppercase font-bold tracking-wider mt-0.5">Total Reports</p>
+          </div>
+          <div>
+            <p className="text-2xl font-black text-indigo-300">{advancedData?.trend?.length || 1}</p>
+            <p className="text-white/60 text-[9px] uppercase font-bold tracking-wider mt-0.5">Semesters Tracked</p>
+          </div>
+          <div>
+            <p className="text-2xl font-black text-indigo-300">{avgFFI}</p>
+            <p className="text-white/60 text-[9px] uppercase font-bold tracking-wider mt-0.5">Lifetime FFI Avg</p>
+          </div>
+        </div>
+        {/* Backdrop visual detail */}
+        <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl group-hover:scale-125 transition-transform"></div>
+        <div className="absolute -right-12 -top-12 w-48 h-48 bg-indigo-600/10 rounded-full blur-2xl group-hover:scale-125 transition-transform"></div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between text-slate-400 dark:text-slate-500 text-xs">
+        <span className="text-xs text-indigo-500 dark:text-indigo-400">Based on {totalReports} report{totalReports > 1 ? 's' : ''}</span>
+        <span className="text-slate-300 dark:text-slate-700">·</span>
+        <span className="text-xs text-indigo-500 dark:text-indigo-400">{totalAppreciation + totalAttention} total comments analyzed</span>
       </div>
     </div>
   );
@@ -265,7 +457,7 @@ function AnalysisSection({ summary }) {
 // ── MAIN DASHBOARD ───────────────────────────────────────────────
 export default function FacultyDashboard() {
   const { token, user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('reports'); // reports | analysis | advanced | records
+  const [activeTab, setActiveTab] = useState('reports'); // reports | analysis | records
   const [advancedData, setAdvancedData] = useState(null);
   const [reports, setReports] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -275,19 +467,47 @@ export default function FacultyDashboard() {
   const [filterSem, setFilterSem] = useState('');
   const [availableYears, setAvailableYears] = useState([]);
   const [availableSems, setAvailableSems] = useState([]);
+  const [forceApproveNotif, setForceApproveNotif] = useState(null);
 
   const api = axios.create({ headers: { Authorization: `Bearer ${token}` } });
 
   useEffect(() => {
     fetchData();
-    if (activeTab === 'advanced') fetchAdvanced();
+    fetchNotifications();
   }, [filterYear, filterSem, activeTab]);
 
-  async function fetchAdvanced() {
+  async function fetchNotifications() {
     try {
-      const { data } = await api.get('/api/reports/faculty/advanced-analytics');
-      setAdvancedData(data);
+      const { data } = await api.get('/api/notifications');
+      const unreadForceApprove = (data.notifications || []).find(n => n.type === 'hod_force_approved' && !n.read);
+      if (unreadForceApprove) {
+        setForceApproveNotif(unreadForceApprove);
+      }
     } catch {}
+  }
+
+  async function handleDismissPopup() {
+    if (!forceApproveNotif) return;
+    try {
+      await api.patch(`/api/notifications/${forceApproveNotif._id}/read`);
+      setForceApproveNotif(null);
+    } catch {
+      setForceApproveNotif(null);
+    }
+  }
+
+  async function handleViewReport() {
+    if (!forceApproveNotif || !forceApproveNotif.reportId) return;
+    try {
+      const { data } = await api.get(`/api/reports/${forceApproveNotif.reportId}`);
+      if (data.driveLink) {
+        window.open(data.driveLink, '_blank');
+      } else {
+        toast.error("Feedback PDF not found for this report.");
+      }
+    } catch {
+      toast.error("Failed to load report details.");
+    }
   }
 
   async function fetchData() {
@@ -302,6 +522,12 @@ export default function FacultyDashboard() {
       setSummary(data.summary);
       if (data.summary?.years) setAvailableYears(data.summary.years);
       if (data.summary?.semesters) setAvailableSems(data.summary.semesters);
+
+      // Concurrently load advanced analytics if analysis tab is active
+      if (activeTab === 'analysis') {
+        const advRes = await api.get('/api/reports/faculty/advanced-analytics');
+        setAdvancedData(advRes.data);
+      }
     } catch (err) {
       if (err.response?.status === 401) { logout(); return; }
       toast.error('Failed to load data');
@@ -325,7 +551,7 @@ export default function FacultyDashboard() {
   const acknowledged = reports.filter(r => r.status === 'faculty_approved');
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col w-full">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col w-full text-slate-800 dark:text-slate-100 transition-colors duration-200">
       <Navbar title="Faculty Portal" subtitle={user?.department} />
 
       <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
@@ -371,15 +597,14 @@ export default function FacultyDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit flex-wrap">
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 rounded-xl p-1 w-fit flex-wrap border border-slate-200 dark:border-slate-800">
           {[
             { id: 'reports',  label: `Reports (${reports.length})` },
-            { id: 'analysis', label: 'Analysis' },
-            { id: 'advanced', label: '🚀 Advanced' },
-            { id: 'records',  label: 'Records' },
+            { id: 'analysis', label: '📈 Analytics & Insights' },
+            { id: 'records',  label: 'Historical Records' },
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === tab.id ? "bg-white shadow text-slate-800" : "text-slate-500 hover:text-slate-700"}`}>
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === tab.id ? "bg-white dark:bg-slate-800 shadow text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400 hover:text-slate-700"}`}>
               {tab.label}
             </button>
           ))}
@@ -419,6 +644,7 @@ export default function FacultyDashboard() {
                             <th className="px-4 py-3 text-center">Sem</th>
                             <th className="px-4 py-3 text-center">Year</th>
                             <th className="px-4 py-3 text-center">FFI</th>
+                            <th className="px-4 py-3 text-center">Resp.</th>
                             <th className="px-4 py-3 text-left">Appreciation</th>
                             <th className="px-4 py-3 text-left">Needs Attention</th>
                             <th className="px-4 py-3 text-left">HOD Remarks</th>
@@ -452,6 +678,9 @@ export default function FacultyDashboard() {
                                     ? <span className={`text-sm font-bold ${report.ffiScore>=4?'text-emerald-600':report.ffiScore>=3?'text-amber-600':'text-red-600'}`}>{report.ffiScore.toFixed(2)}</span>
                                     : <span className="text-slate-300">—</span>}
                                 </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="text-xs font-semibold text-slate-600">{report.responseCount ?? report.totalResponses ?? '—'}</span>
+                                </td>
                                 <td className="px-4 py-3 max-w-[160px]">
                                   <div className="space-y-0.5">
                                     {pctEntries.map(([label,pct])=>(
@@ -479,13 +708,6 @@ export default function FacultyDashboard() {
                                     : <span className="badge-amber flex items-center gap-1 justify-center"><Clock size={10}/>Pending</span>}
                                 </td>
                                 <td className="px-4 py-3 text-center">
-                                  {!approved && (
-                                    <button onClick={()=>handleAcknowledge(report._id)} disabled={acknowledging===report._id}
-                                      className="btn btn-success btn-sm whitespace-nowrap">
-                                      <CheckCircle size={12}/>
-                                      {acknowledging===report._id?'...':'I have seen this'}
-                                    </button>
-                                  )}
                                   {approved && (
                                     <p className="text-xs text-slate-400">
                                       {report.facultyAcknowledgedAt ? new Date(report.facultyAcknowledgedAt).toLocaleDateString('en-IN') : 'Done'}
@@ -511,135 +733,13 @@ export default function FacultyDashboard() {
                   <p className="text-slate-500 font-medium">No data to analyze</p>
                   <p className="text-slate-400 text-sm mt-1">Analysis will appear once reports are available</p>
                 </div>
-              ) : <AnalysisSection summary={summary} />
-            )}
-
-            {/* ADVANCED TAB */}
-            {activeTab === 'advanced' && (
-              !advancedData ? (
+              ) : !advancedData ? (
                 <div className="card p-16 text-center">
-                  <div className="w-8 h-8 border-4 border-blue-900 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                  <p className="text-slate-500 text-sm">Loading advanced analytics...</p>
+                  <div className="w-8 h-8 border-4 border-indigo-900 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                  <p className="text-slate-500 text-sm">Loading Analytics & Insights...</p>
                 </div>
               ) : (
-                <div className="space-y-5">
-
-                  {/* Improvement Tracker */}
-                  {advancedData.improvement && (
-                    <div className={`card p-5 border-l-4 ${advancedData.improvement.direction === 'up' ? 'border-l-green-500 bg-green-50' : advancedData.improvement.direction === 'down' ? 'border-l-red-500 bg-red-50' : 'border-l-slate-400'}`}>
-                      <div className="flex items-center gap-3">
-                        {advancedData.improvement.direction === 'up' ? <TrendingUp className="text-green-600" size={24} /> : advancedData.improvement.direction === 'down' ? <TrendingDown className="text-red-600" size={24} /> : <span className="text-2xl">➡️</span>}
-                        <div>
-                          <p className="font-bold text-slate-800">FFI Improvement Tracker</p>
-                          <p className="text-sm text-slate-600">
-                            {advancedData.improvement.direction === 'up'
-                              ? `📈 Improved by ${advancedData.improvement.diff} points from ${advancedData.improvement.from} to ${advancedData.improvement.to}`
-                              : advancedData.improvement.direction === 'down'
-                              ? `📉 Decreased by ${Math.abs(advancedData.improvement.diff)} points from ${advancedData.improvement.from} to ${advancedData.improvement.to}`
-                              : `No change between ${advancedData.improvement.from} and ${advancedData.improvement.to}`}
-                          </p>
-                        </div>
-                        <span className={`ml-auto text-2xl font-black ${advancedData.improvement.diff > 0 ? 'text-green-600' : advancedData.improvement.diff < 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                          {advancedData.improvement.diff > 0 ? '+' : ''}{advancedData.improvement.diff}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* FFI Trend Line Chart */}
-                  {advancedData.trend?.length > 0 && (
-                    <div className="card p-5">
-                      <p className="section-title mb-4">📊 FFI Score Timeline</p>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={advancedData.trend}>
-                          <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                          <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} />
-                          <Tooltip />
-                          <Line type="monotone" dataKey="avgFFI" stroke="#1e3a8a" strokeWidth={2} dot={{ fill: '#1e3a8a', r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-
-                  {/* Peer Comparison */}
-                  <div className="card p-5">
-                    <p className="section-title mb-4">👥 Anonymous Peer Comparison</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                        <p className="text-xs text-blue-600 font-semibold uppercase mb-1">Your Avg FFI</p>
-                        <p className={`text-3xl font-black ${advancedData.myAvgFFI >= advancedData.deptAvgFFI ? 'text-green-700' : 'text-amber-600'}`}>{advancedData.myAvgFFI}</p>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
-                        <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Dept Avg FFI</p>
-                        <p className="text-3xl font-black text-slate-600">{advancedData.deptAvgFFI}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 text-center">
-                      {advancedData.myAvgFFI >= advancedData.deptAvgFFI
-                        ? <p className="text-sm text-green-700 font-medium">✅ You are performing above department average</p>
-                        : <p className="text-sm text-amber-600 font-medium">⚠️ You are below department average — focus on improvement areas</p>}
-                    </div>
-                  </div>
-
-                  {/* Teaching Dimension Radar */}
-                  {advancedData.dimensions && Object.values(advancedData.dimensions).some(v => v > 0) && (
-                    <div className="card p-5">
-                      <p className="section-title mb-4">🎯 Teaching Weakness Areas</p>
-                      <p className="text-xs text-slate-500 mb-3">Based on student attention comments — lower is better</p>
-                      <div className="space-y-2">
-                        {Object.entries(advancedData.dimensions).map(([dim, count]) => (
-                          <div key={dim} className="flex items-center gap-3">
-                            <span className="text-xs font-medium text-slate-600 w-24 shrink-0">{dim}</span>
-                            <div className="flex-1 bg-slate-100 rounded-full h-2.5">
-                              <div className={`h-2.5 rounded-full ${count === 0 ? 'bg-green-400' : count <= 2 ? 'bg-amber-400' : 'bg-red-500'}`}
-                                style={{ width: count === 0 ? '5%' : `${Math.min(count * 20, 100)}%` }}></div>
-                            </div>
-                            <span className={`text-xs font-bold w-8 text-right ${count === 0 ? 'text-green-600' : count <= 2 ? 'text-amber-600' : 'text-red-600'}`}>
-                              {count === 0 ? '✓' : count}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Smart Recommendations */}
-                  {advancedData.recommendations?.length > 0 && (
-                    <div className="card p-5">
-                      <p className="section-title mb-4">💡 Smart Recommendations</p>
-                      <div className="space-y-3">
-                        {advancedData.recommendations.map((rec, i) => (
-                          <div key={i} className="flex gap-3 items-start bg-slate-50 border border-slate-200 rounded-xl p-4">
-                            <span className="text-2xl shrink-0">{rec.icon}</span>
-                            <div>
-                              <p className="font-semibold text-slate-800 text-sm">{rec.title}</p>
-                              <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">{rec.desc}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Summary stats */}
-                  <div className="card p-5 bg-gradient-to-r from-blue-900 to-slate-900 text-white">
-                    <p className="font-bold mb-3">📋 Career Summary</p>
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <p className="text-2xl font-black">{advancedData.totalReports}</p>
-                        <p className="text-blue-300 text-xs">Total Reports</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-black">{advancedData.trend?.length || 0}</p>
-                        <p className="text-blue-300 text-xs">Semesters</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-black">{advancedData.myAvgFFI}</p>
-                        <p className="text-blue-300 text-xs">Lifetime FFI</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AnalysisSection summary={summary} advancedData={advancedData} />
               )
             )}
 
@@ -700,6 +800,43 @@ export default function FacultyDashboard() {
           </>
         )}
       </div>
+      {/* Alert popup for HOD force-approving a report */}
+      {forceApproveNotif && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md p-6 relative border border-slate-100 dark:border-slate-800 animate-scale-in text-slate-800 dark:text-slate-100">
+            {/* Close/Skip cross sign button */}
+            <button onClick={handleDismissPopup} className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/30 rounded-xl flex items-center justify-center border border-amber-250 dark:border-amber-800">
+                <svg className="w-5 h-5 text-amber-650 dark:text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">HOD Approved Report Alert</h3>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Attention required</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-650 dark:text-slate-350 leading-relaxed mb-5">
+              {forceApproveNotif.message}
+            </p>
+
+            <div className="flex gap-2 justify-end">
+              <button onClick={handleDismissPopup} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-xl transition-colors">
+                Skip
+              </button>
+              {forceApproveNotif.reportId && (
+                <button onClick={handleViewReport} className="px-4 py-2 bg-indigo-650 hover:bg-indigo-755 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                  View Report
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <Footer />
     </div>
   );

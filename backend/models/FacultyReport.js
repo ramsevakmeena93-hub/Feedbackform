@@ -18,6 +18,7 @@ const facultyReportSchema = new mongoose.Schema({
   appreciationCount: { type: Number, default: 0 },
   attentionCount: { type: Number, default: 0 },
   ffiScore: { type: Number, default: null },
+  responseCount: { type: Number, default: null }, // Number of students who gave feedback
   commentPercentages: { type: Object, default: {} }, // { "Excellent": 10, "Very Good": 25, "Good": 65 }
 
   // HOD editable fields
