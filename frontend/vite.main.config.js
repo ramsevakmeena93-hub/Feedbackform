@@ -1,14 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Main website — no role lock, shows landing page at /
+const BACKEND = process.env.VITE_API_URL || 'https://feedbackbackend-production-db19.up.railway.app';
+
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5176,
-    proxy: { '/api': 'http://localhost:5000' }
+    proxy: { '/api': BACKEND }
   },
-  define: {
-    __APP_ROLE__: JSON.stringify(null)
-  }
+  build: { outDir: 'dist-main' },
+  define: { __APP_ROLE__: JSON.stringify(null) }
 });

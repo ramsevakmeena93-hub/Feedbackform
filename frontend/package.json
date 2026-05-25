@@ -8,7 +8,13 @@
     "dev:hod": "vite --config vite.hod.config.js",
     "dev:vc": "vite --config vite.vc.config.js",
     "dev:faculty": "vite --config vite.faculty.config.js",
+    "dev:admin": "vite --config vite.admin.config.js",
     "build": "vite build",
+    "build:main": "vite build --config vite.main.config.js",
+    "build:hod": "vite build --config vite.hod.config.js",
+    "build:vc": "vite build --config vite.vc.config.js",
+    "build:faculty": "vite build --config vite.faculty.config.js",
+    "build:admin": "vite build --config vite.admin.config.js",
     "preview": "vite preview"
   },
   "dependencies": {
