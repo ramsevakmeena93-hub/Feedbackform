@@ -8,7 +8,7 @@ export function AuthProvider({ children, appRole }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storageKey = appRole ? `auth_${appRole}` : 'auth';
+    const storageKey = 'auth'; // single key for combined deployment
 
     // Handle token passed via URL query params (cross-port login from landing page)
     const params = new URLSearchParams(window.location.search);
@@ -43,14 +43,14 @@ export function AuthProvider({ children, appRole }) {
   }, [appRole]);
 
   function login(userData, authToken) {
-    const storageKey = appRole ? `auth_${appRole}` : 'auth';
+    const storageKey = 'auth';
     setUser(userData);
     setToken(authToken);
     localStorage.setItem(storageKey, JSON.stringify({ user: userData, token: authToken }));
   }
 
   function logout() {
-    const storageKey = appRole ? `auth_${appRole}` : 'auth';
+    const storageKey = 'auth';
     setUser(null);
     setToken(null);
     localStorage.removeItem(storageKey);

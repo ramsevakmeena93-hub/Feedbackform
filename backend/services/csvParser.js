@@ -48,27 +48,13 @@ function parseCSV(buffer) {
     }
     if (!url) continue;
 
-    // Find Response Count
+    // Find Response Count — only use header-based method (Method A)
+    // Method B fallback removed as it picks wrong numbers
     let resp = null;
-    // Method A: Use header index if found (Best for your screenshot)
     if (respIdx !== -1 && cells[respIdx]) {
       const raw = cells[respIdx].trim();
       const val = parseInt(raw.replace(/[^\d]/g, ''), 10);
-      if (!isNaN(val)) resp = val;
-    } 
-    
-    // Method B: Fallback - look for most likely small number
-    if (resp === null) {
-      for (let j = cells.length - 1; j > 0; j--) {
-        const cellVal = cells[j].replace(/[^\d]/g, '');
-        if (cellVal) {
-          const val = parseInt(cellVal, 10);
-          if (!isNaN(val) && val > 0 && val < 500) {
-            resp = val;
-            break; 
-          }
-        }
-      }
+      if (!isNaN(val) && val > 0) resp = val;
     }
 
     results.push({ pdfLink: url, responseCount: resp });

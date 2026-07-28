@@ -35,7 +35,11 @@ export default function Login({ appRole }) {
         setPending(data); setShowSig(true);
       } else {
         login(data.user, data.token);
-        navigate(data.user.role === "vc" ? "/vc" : data.user.role === "faculty" ? "/faculty" : "/hod");
+        navigate(
+          data.user.role === "vc" ? "/vc" :
+          data.user.role === "faculty" ? "/faculty" :
+          data.user.role === "admin" ? "/admin" : "/hod"
+        );
       }
     } catch (err) {
       toast.error(err.response?.data?.error || "Login failed");
@@ -45,7 +49,11 @@ export default function Login({ appRole }) {
   function afterSig() {
     setShowSig(false);
     login(pending.user, pending.token);
-    navigate(pending.user.role === "vc" ? "/vc" : pending.user.role === "faculty" ? "/faculty" : "/hod");
+    navigate(
+      pending.user.role === "vc" ? "/vc" :
+      pending.user.role === "faculty" ? "/faculty" :
+      pending.user.role === "admin" ? "/admin" : "/hod"
+    );
   }
 
   return (
@@ -55,14 +63,14 @@ export default function Login({ appRole }) {
       {/* Top nav bar */}
       <header className="w-full bg-white border-b border-slate-200 shadow-sm z-10">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between h-14">
-          <a href="http://localhost:5176/landing" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <a href="/landing" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-sm">M</div>
             <div>
               <p className="font-bold text-slate-900 text-sm leading-tight">MITS Feedback System</p>
               <p className="text-slate-400 text-xs hidden sm:block">Gwalior · Deemed University</p>
             </div>
           </a>
-          <a href="http://localhost:5176/landing" className="text-xs text-slate-500 hover:text-indigo-600 font-medium transition-colors">
+          <a href="/landing" className="text-xs text-slate-500 hover:text-indigo-600 font-medium transition-colors">
             ← Back to Home
           </a>
         </div>
