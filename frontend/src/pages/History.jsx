@@ -12,8 +12,8 @@ import {
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: currentYear - 2025 + 6 }, (_, i) => String(2025 + i));
 const SESSIONS = [
-  { value: "aug-dec", label: "Aug – Dec" },
-  { value: "jan-may", label: "Jan – May" },
+  { value: "jul-dec", label: "Jul – Dec (Odd Semester)" },
+  { value: "jan-may", label: "Jan – Jun (Even Semester)" },
 ];
 const DEPARTMENTS = [
   "Centre for Computer Science and Technology",
@@ -109,7 +109,7 @@ function SubmissionCard({ sub, token }) {
             </div>
             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
               {sub.academicYear && <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">📅 {sub.academicYear}</span>}
-              {sub.session && <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">🗓 {sub.session === "jan-may" ? "Jan–May" : "Aug–Dec"}</span>}
+              {sub.session && <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">🗓 {sub.session === "jan-may" ? "Jan–Jun" : "Jul–Dec"}</span>}
               {user?.role !== "faculty" && <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">📋 {reports.length} reports</span>}
               <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">{new Date(sub.createdAt).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</span>
             </div>

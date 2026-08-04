@@ -137,7 +137,7 @@ router.patch('/:id/status', authMiddleware, requireRole('vc'), async (req, res) 
         await Notification.create({
           userId: submission.hodId._id || submission.hodId,
           type: 'vc_approved',
-          message: `VC has approved your submission for Academic Year ${submission.academicYear || ''}, Session ${submission.session === 'jan-may' ? 'Jan-May' : 'Aug-Dec'}.`,
+          message: `VC has approved your submission for Academic Year ${submission.academicYear || ''}, Session ${submission.session === 'jan-may' ? 'Jan-Jun' : 'Jul-Dec'}.`,
           submissionId: submission._id
         });
 

@@ -287,7 +287,7 @@ async function generateFeedbackReportPDF({ submission, reports, hodUser, vcUser,
   y -= 16;
 
   // Line 4: Academic Year (left) | Session (right)
-  const sessionLabel = submission.session === "jan-may" ? "January \u2013 May" : "July \u2013 August";
+  const sessionLabel = submission.session === "jan-may" ? "January \u2013 May" : "July \u2013 December";
   const ayText   = "Academic Year \u2013 " + (submission.academicYear || "2025-26");
   const sessText = "Session: " + sessionLabel;
   txt(coverPage, ayText,   ML, y, 11, timesFont, black);

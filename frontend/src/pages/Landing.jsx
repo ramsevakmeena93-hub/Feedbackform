@@ -1,379 +1,339 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import toast from "react-hot-toast";
-import { Eye, EyeOff, LogIn, X, Building2, Users, GraduationCap, Shield, Mail, Github, Linkedin, UserPlus, ChevronRight, MapPin, Phone } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import mitsLogo from "../assets/mits-logo.png";
 import campusImg from "../assets/mits-campus2.png";
+import {
+  Building2, Users, GraduationCap, Shield,
+  MapPin, Phone, Mail, ArrowRight,
+  Star, TrendingUp, CheckCircle, BarChart3,
+  Zap, Menu, X, ChevronRight
+} from "lucide-react";
 
-// Fallback campus image URL (actual MITS building)
-const CAMPUS_IMG = campusImg;
-
-const PORTALS = [
-  { role:"hod",     label:"Head of Department", icon:Building2,     color:"from-blue-600 to-blue-800",       hex:"#2563eb" },
-  { role:"faculty", label:"Faculty Member",      icon:Users,         color:"from-emerald-600 to-emerald-800", hex:"#059669" },
-  { role:"vc",      label:"Vice Chancellor",     icon:GraduationCap, color:"from-violet-600 to-violet-800",   hex:"#7c3aed" },
-  { role:"admin",   label:"System Admin",        icon:Shield,        color:"from-rose-600 to-rose-800",       hex:"#e11d48" },
+const STATS = [
+  { value: "500+", label: "Faculty Evaluated",  icon: Users,      color: "text-blue-400"   },
+  { value: "14",   label: "Departments",         icon: Building2,  color: "text-violet-400" },
+  { value: "98%",  label: "Response Rate",       icon: TrendingUp, color: "text-emerald-400"},
+  { value: "4.2",  label: "Avg FFI Score",       icon: Star,       color: "text-amber-400"  }
 ];
 
 export default function Landing() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const [modal, setModal]       = useState(null);
-  const [portal, setPortal]     = useState(PORTALS[0]);
-  const [form, setForm]         = useState({ name:"", email:"", password:"", department:"", role:"hod" });
-  const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading]   = useState(false);
+  const { user } = useAuth();
+  const [menuOpen, setMenuOpen]     = useState(false);
+  const [scrolled, setScrolled]     = useState(false);
+  const [counted, setCounted]       = useState(false);
 
-  function openModal(type, p) {
-    setPortal(p || PORTALS[0]);
-    setForm({ name:"", email:"", password:"", department:"", role: p?.role || "hod" });
-    setShowPass(false);
-    setModal(type);
-  }
+  useEffect(() => {
+    if (user) {
+      const dest = user.role === "vc" ? "/vc"
+        : user.role === "faculty" ? "/faculty"
+        : user.role === "admin" ? "/admin" : "/hod";
+      navigate(dest, { replace: true });
+    }
+  }, [user]);
 
-  async function handleLogin(e) {
-    e.preventDefault(); setLoading(true);
-    try {
-      const { data } = await axios.post("/api/auth/login", { email: form.email, password: form.password });
-      if (data.user.role !== portal.role) { toast.error(`This portal is for ${portal.label} only`); return; }
-      login(data.user, data.token);
-      setModal(null);
-      navigate(data.user.role==="vc"?"/vc":data.user.role==="faculty"?"/faculty":data.user.role==="admin"?"/admin":"/hod");
-    } catch(err) { toast.error(err.response?.data?.error || "Invalid credentials"); }
-    finally { setLoading(false); }
-  }
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  async function handleRegister(e) {
-    e.preventDefault(); setLoading(true);
-    try {
-      await axios.post("/api/auth/register", { name:form.name, email:form.email, password:form.password, role:form.role, department:form.department });
-      toast.success("Account created! Please login."); setModal("login");
-    } catch(err) { toast.error(err.response?.data?.error || "Registration failed"); }
-    finally { setLoading(false); }
-  }
-
-  const PIcon = portal.icon;
+  useEffect(() => {
+    const t = setTimeout(() => setCounted(true), 600);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col text-[14px]">
+    <div className="min-h-screen bg-[#0a0f1e] text-slate-100 overflow-x-hidden">
 
       {/* ── NAVBAR ── */}
-      <header className="bg-[#0d1b3e] sticky top-0 z-50 h-13">
-        <div className="w-full px-10 h-13 flex items-center justify-between" style={{height:"52px"}}>
-          <div className="flex items-center gap-2.5">
-            <img src={mitsLogo} alt="MITS" className="h-9 w-auto object-contain rounded"/>
-            <div>
-              <p className="text-white font-bold text-sm leading-tight">MITS Gwalior</p>
-              <p className="text-blue-300 text-xs leading-tight">Faculty Feedback System</p>
-            </div>
+      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-slate-900/95 backdrop-blur-xl shadow-sm border-b border-slate-800/80"
+          : "bg-transparent"
+      }`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <a href="#home" className="flex items-center gap-3 group">
+              <div className="w-9 h-9 rounded-xl overflow-hidden shadow-sm bg-white/10 flex-shrink-0">
+                <img src={mitsLogo} alt="MITS" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <p className="font-bold text-sm leading-tight text-white">MITS Gwalior</p>
+                <p className="text-[10px] leading-tight text-blue-300">Faculty Feedback System</p>
+              </div>
+            </a>
+
+            <button
+              onClick={() => navigate("/login")}
+              className="hidden md:flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
+              Sign In <ArrowRight size={14} />
+            </button>
+
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="md:hidden p-2 rounded-xl text-white hover:bg-white/10 transition-colors">
+              {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
-          <nav className="hidden md:flex items-center gap-0.5">
-            <a href="#home" className="px-4 py-1.5 text-sm font-semibold text-white border-b-2 border-blue-400">Home</a>
-            <button onClick={() => navigate("/how-it-works")} className="px-4 py-1.5 text-sm font-medium text-white/70 hover:text-white transition-colors">How It Works</button>
-          </nav>
-          <button onClick={() => openModal("login")}
-            className="flex items-center gap-2 px-4 py-1.5 border border-white/30 hover:bg-white/10 text-white text-sm font-semibold rounded-lg transition-all">
-            <LogIn size={14}/> Login
-          </button>
         </div>
+
+        {menuOpen && (
+          <div className="md:hidden bg-slate-900 border-t border-slate-800 px-4 py-3">
+            <button
+              onClick={() => { navigate("/login"); setMenuOpen(false); }}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+              Sign In
+            </button>
+          </div>
+        )}
       </header>
 
       {/* ── HERO ── */}
-      <section id="home" className="bg-[#0d1b3e] relative overflow-hidden">
-        <div className="w-full px-10 py-8 grid lg:grid-cols-2 gap-6 items-center min-h-[300px]">
-          {/* Left */}
-          <div className="relative z-10">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-2">
-              Your Feedback,<br/>
-              <span className="text-blue-400">Shapes Our Future</span>
-            </h1>
-            <div className="w-12 h-1 bg-blue-400 mb-4 rounded"/>
-            <p className="text-white/65 text-sm leading-relaxed mb-6 max-w-sm">
-              Share your valuable feedback about faculty, courses, and learning experience.
-              Together, we build a better academic environment.
-            </p>
-            <div className="flex flex-wrap gap-2.5">
-              <button onClick={() => navigate("/how-it-works")}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-lg transition-all shadow-md">
-                How It Works
-              </button>
-              <button onClick={() => openModal("login")}
-                className="flex items-center gap-2 px-5 py-2 border border-white/30 hover:bg-white/10 text-white font-semibold text-sm rounded-lg transition-all">
-                <LogIn size={14}/> Login
-              </button>
-            </div>
-          </div>
-          {/* Right — campus photo */}
-          <div className="relative hidden lg:block">
-            <div className="rounded-2xl overflow-hidden shadow-2xl h-64" style={{clipPath:"polygon(6% 0%, 100% 0%, 100% 100%, 0% 100%)"}}>
-              <img src={CAMPUS_IMG} alt="MITS Campus" className="w-full h-full object-cover"
-                onError={e=>{e.target.src="https://images.unsplash.com/photo-1562774053-701939374585?w=800&q=80";}}/>
-            </div>
-            <div className="absolute bottom-3 right-2 bg-white rounded-xl shadow-xl p-3 max-w-[190px]">
-              <p className="text-blue-600 text-xl font-black leading-none mb-1">"</p>
-              <p className="text-slate-700 text-xs font-medium leading-snug">Honest feedback leads to real improvement.</p>
-              <p className="text-blue-600 text-xs font-semibold mt-1.5 flex items-center gap-1">
-                <span>♥</span> Thank you for contributing!
+      <section id="home" className="relative min-h-screen flex items-center overflow-hidden">
+        {/* Animated background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[120px] animate-float" />
+          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-violet-600/20 rounded-full blur-[100px] animate-float-slow" />
+          <div className="absolute top-3/4 left-1/2 w-64 h-64 bg-emerald-600/15 rounded-full blur-[80px] animate-float" style={{ animationDelay: "2s" }} />
+          <div className="absolute inset-0 bg-grid-dark opacity-30" />
+        </div>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-20">
+          <div className="grid lg:grid-cols-2 gap-12 items-center min-h-[85vh] py-16">
+
+            {/* Left — Content */}
+            <div className="animate-fade-up">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-semibold mb-6">
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                MITS Deemed University — Academic Feedback Platform
+              </div>
+
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight mb-6">
+                Your Feedback,<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-violet-400 to-emerald-400">
+                  Shapes Our Future
+                </span>
+              </h1>
+
+              <p className="text-white/60 text-lg leading-relaxed mb-8 max-w-lg">
+                A premium AI-powered faculty feedback management system for MITS Gwalior.
+                Streamline evaluations, gain insights, and build excellence.
               </p>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* ── PORTAL CARDS ── */}
-      <section className="py-6 bg-slate-50">
-        <div className="w-full px-10">
-          <div className="text-center mb-6">
-            <h2 className="text-lg font-bold text-[#0d1b3e]">Access Your Portal</h2>
-            <div className="w-10 h-0.5 bg-blue-500 mx-auto mt-1.5 rounded"/>
-          </div>
-          <div className="grid sm:grid-cols-4 gap-3">
-            {PORTALS.map(p => {
-              const Icon = p.icon;
-              return (
-                <div key={p.role} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 text-center hover:shadow-md transition-shadow group cursor-pointer"
-                  onClick={() => openModal("login", p)}>
-                  <div className={`w-10 h-10 bg-gradient-to-br ${p.color} rounded-xl flex items-center justify-center mx-auto mb-3 shadow group-hover:scale-110 transition-transform`}>
-                    <Icon size={18} className="text-white"/>
+              <div className="flex flex-wrap gap-3 mb-8">
+                <button
+                  onClick={() => navigate("/login")}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 hover:-translate-y-0.5">
+                  Get Started <ArrowRight size={16} />
+                </button>
+              </div>
+
+              {/* Trust indicators */}
+              <div className="flex items-center gap-5 flex-wrap">
+                {[
+                  "Google OAuth Secured",
+                  "AI-Powered Analysis",
+                  "MITS Official System",
+                ].map(label => (
+                  <div key={label} className="flex items-center gap-1.5 text-white/50 text-xs">
+                    <CheckCircle size={13} className="text-emerald-400" />
+                    {label}
                   </div>
-                  <p className="font-bold text-slate-800 text-sm mb-2">{p.label}</p>
-                  <button className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 mx-auto">
-                    Sign In <ChevronRight size={11}/>
-                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Right — Campus image */}
+            <div className="hidden lg:block animate-fade-up relative" style={{ animationDelay: "200ms" }}>
+              <div className="relative">
+                <div
+                  className="rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+                  style={{ clipPath: "polygon(4% 0%, 100% 0%, 96% 100%, 0% 100%)" }}>
+                  <img
+                    src={campusImg}
+                    alt="MITS Campus"
+                    className="w-full h-80 object-cover"
+                    onError={e => { e.target.src = "https://images.unsplash.com/photo-1562774053-701939374585?w=800&q=80"; }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0d1b3e]/60 via-transparent to-transparent" />
                 </div>
-              );
-            })}
+
+                {/* Floating stats card */}
+                <div className="absolute -bottom-5 -left-6 glass-dark rounded-2xl p-4 animate-float" style={{ animationDelay: "1s" }}>
+                  <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wider mb-2">Live Stats</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+                      <TrendingUp size={14} className="text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-lg leading-none">4.2</p>
+                      <p className="text-white/50 text-[10px]">Avg FFI Score</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating quote card */}
+                <div className="absolute -top-4 -right-6 glass-dark rounded-2xl p-4 max-w-[180px] animate-float-slow">
+                  <div className="flex gap-0.5 mb-2">
+                    {[1,2,3,4,5].map(i => <Star key={i} size={10} className="text-amber-400 fill-amber-400" />)}
+                  </div>
+                  <p className="text-white/80 text-[10px] leading-relaxed">
+                    "Honest feedback leads to real improvement."
+                  </p>
+                  <p className="text-blue-400 text-[10px] font-semibold mt-1.5">♥ MITS Gwalior</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 animate-bounce opacity-60">
+          <div className="w-5 h-8 border-2 border-white/30 rounded-full flex items-start justify-center p-1">
+            <div className="w-1 h-2 bg-white/60 rounded-full animate-bounce" />
+          </div>
+          <p className="text-white/40 text-[10px] font-medium">Scroll</p>
+        </div>
+      </section>
+
+      {/* ── STATS BAR ── */}
+      <section className="bg-slate-900 border-y border-slate-800 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {STATS.map((stat, i) => (
+              <div key={i} className="flex items-center gap-4 animate-fade-up" style={{ animationDelay: `${i * 100}ms` }}>
+                <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">
+                  <stat.icon size={18} className={stat.color} />
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-white leading-none">{counted ? stat.value : "—"}</p>
+                  <p className="text-slate-500 text-xs font-medium mt-0.5">{stat.label}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── GUIDED BY + DEVELOPER ── */}
-      <section className="py-6 bg-white">
-        <div className="w-full px-10 grid lg:grid-cols-2 gap-6">
+      {/* ── CTA BANNER ── */}
+      <section className="py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-violet-600/10 to-emerald-600/10 pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-          {/* Guided By */}
-          <div>
-            <h3 className="font-bold text-[#0d1b3e] text-base mb-1">Guided By</h3>
-            <div className="w-8 h-0.5 bg-blue-500 mb-4 rounded"/>
-            <div className="flex gap-4 items-start">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border-2 border-blue-100">
-                <img src="https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=200&q=80" alt="Guide" className="w-full h-full object-cover"/>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-800 text-sm">Prof. [Guide Name]</p>
-                <p className="text-blue-600 font-semibold text-xs">Project Guide &amp; Supervisor</p>
-                <p className="text-slate-500 text-xs mt-0.5">Department of Computer Science &amp; Technology</p>
-                <p className="text-slate-500 text-xs">MITS Gwalior</p>
-              </div>
-              <div className="hidden sm:block bg-blue-50 border border-blue-100 rounded-xl p-3 max-w-[160px] shrink-0">
-                <p className="text-blue-600 text-xl font-black leading-none">"</p>
-                <p className="text-slate-600 text-xs leading-relaxed mt-1">
-                  Feedback is the foundation of growth and excellence.
-                </p>
-              </div>
-            </div>
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-semibold mb-6">
+            <Zap size={12} className="text-violet-400" />
+            AI-Powered · Secure · Instant
           </div>
 
-          {/* Developer */}
-          <div>
-            <h3 className="font-bold text-[#0d1b3e] text-base mb-1">Developer</h3>
-            <div className="w-8 h-0.5 bg-blue-500 mb-4 rounded"/>
-            <div className="flex gap-4 items-start">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border-2 border-blue-100">
-                <img src="/ajay-meena.png" alt="Ajay Meena" className="w-full h-full object-cover"
-                  onError={e=>{e.target.src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80";}}/>
+          <h2 className="text-3xl sm:text-5xl font-extrabold text-white mb-5 leading-tight">
+            Ready to streamline<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400">
+              faculty feedback?
+            </span>
+          </h2>
+
+          <p className="text-slate-400 text-lg mb-10 max-w-xl mx-auto">
+            Join MITS Gwalior's official digital feedback platform.
+            Sign in with your institute Google account and get started instantly.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button
+              onClick={() => navigate("/login")}
+              className="flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-xl hover:shadow-blue-500/30 transition-all duration-200 hover:-translate-y-1 text-base">
+              Sign In with Google <ArrowRight size={18} />
+            </button>
+          </div>
+
+          {/* Feature pills */}
+          <div className="flex flex-wrap justify-center gap-3 mt-10">
+            {[
+              { icon: BarChart3, label: "AI Analytics" },
+              { icon: Shield,    label: "Role-Based Access" },
+              { icon: Zap,       label: "Instant Processing" },
+              { icon: GraduationCap, label: "VC Approval Flow" },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-xs text-slate-400">
+                <Icon size={13} className="text-blue-400" />
+                {label}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-800 text-sm">Ajay Meena</p>
-                <p className="text-blue-600 font-semibold text-xs">Full Stack Developer</p>
-                <p className="text-slate-500 text-xs mt-0.5">B.Tech CST | 2nd Year</p>
-                <p className="text-slate-500 text-xs">MITS Gwalior</p>
-              </div>
-              <div className="hidden sm:block shrink-0">
-                <div className="flex gap-2 mb-2">
-                  {[
-                    {href:"https://github.com/ramsevakmeena93-hub", Icon:Github, bg:"bg-slate-100 hover:bg-slate-200 text-slate-700"},
-                    {href:"https://www.linkedin.com/in/ajay-meena-607a7b376", Icon:Linkedin, bg:"bg-blue-100 hover:bg-blue-200 text-blue-700"},
-                    {href:"mailto:25tc1aj7@mitsgwl.ac.in", Icon:Mail, bg:"bg-indigo-100 hover:bg-indigo-200 text-indigo-700"},
-                  ].map(({href,Icon,bg})=>(
-                    <a key={href} href={href} target="_blank" rel="noopener noreferrer"
-                      className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center transition-colors`}>
-                      <Icon size={14}/>
-                    </a>
-                  ))}
-                </div>
-                <p className="text-slate-500 text-xs leading-relaxed max-w-[160px]">
-                  Passionate about building impactful solutions.
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="bg-[#0d1b3e] text-white mt-auto">
-        <div className="w-full px-10 py-7 grid sm:grid-cols-4 gap-5">
-          <div>
-            <div className="flex items-center gap-2 mb-2.5">
-              <img src={mitsLogo} alt="MITS" className="h-7 w-auto object-contain rounded opacity-90"/>
-              <div>
-                <p className="font-bold text-xs leading-tight">MITS Gwalior</p>
-                <p className="text-blue-300 text-xs leading-tight">Faculty Feedback System</p>
-              </div>
-            </div>
-            <p className="text-white/50 text-xs leading-relaxed">Together we create an environment of learning, growth and excellence.</p>
-          </div>
-          <div>
-            <p className="font-bold text-xs mb-2.5 uppercase tracking-widest text-white/60">Quick Links</p>
-            {["About Us","How It Works","Privacy Policy","Contact Us"].map(l => (
-              <div key={l} className="flex items-center justify-between py-1 border-b border-white/10">
-                <span className="text-white/55 text-xs">{l}</span>
-                <ChevronRight size={11} className="text-white/30"/>
-              </div>
-            ))}
-          </div>
-          <div>
-            <p className="font-bold text-xs mb-2.5 uppercase tracking-widest text-white/60">Contact Us</p>
-            <div className="space-y-2">
-              {[
-                {Icon:MapPin, text:"Gwalior, Madhya Pradesh, India"},
-                {Icon:Mail,   text:"feedback@mitsgwalior.ac.in"},
-                {Icon:Phone,  text:"+91 751 240 0900"},
-              ].map(({Icon,text})=>(
-                <div key={text} className="flex items-start gap-2">
-                  <Icon size={12} className="text-blue-400 shrink-0 mt-0.5"/>
-                  <span className="text-white/55 text-xs">{text}</span>
+      <footer className="bg-slate-900 border-t border-slate-800 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+
+            {/* Brand */}
+            <div className="lg:col-span-1">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl overflow-hidden bg-white/10 flex-shrink-0">
+                  <img src={mitsLogo} alt="MITS" className="w-full h-full object-contain opacity-90" />
                 </div>
-              ))}
+                <div>
+                  <p className="font-bold leading-tight">MITS Gwalior</p>
+                  <p className="text-blue-400 text-xs leading-tight">Faculty Feedback System</p>
+                </div>
+              </div>
+              <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
+                An AI-powered faculty feedback management platform for Madhav Institute of Technology &amp; Science, Gwalior — Deemed University.
+              </p>
+              <button
+                onClick={() => navigate("/login")}
+                className="mt-5 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-colors">
+                Sign In
+              </button>
             </div>
-          </div>
-          <div>
-            <p className="font-bold text-xs mb-2.5 uppercase tracking-widest text-white/60">Developed By</p>
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-sm shrink-0">&lt;/&gt;</div>
-              <div>
-                <p className="font-bold text-sm">Ajay Meena</p>
-                <p className="text-white/50 text-xs">B.Tech CST | 2nd Year</p>
-                <p className="text-white/50 text-xs">MITS Gwalior</p>
+
+            {/* Quick Links */}
+            <div>
+              <p className="font-semibold text-xs uppercase tracking-widest text-slate-500 mb-4">Quick Links</p>
+              <div className="space-y-2">
+                {["About MITS", "Privacy Policy", "Contact Us"].map(link => (
+                  <a key={link} href="#" className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors group">
+                    <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                    {link}
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <p className="font-semibold text-xs uppercase tracking-widest text-slate-500 mb-4">Contact Us</p>
+              <div className="space-y-3">
+                {[
+                  { icon: MapPin, text: "Gwalior, Madhya Pradesh, India" },
+                  { icon: Mail,   text: "feedback@mitsgwalior.ac.in" },
+                  { icon: Phone,  text: "+91 751 240 0900" },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-start gap-2.5">
+                    <Icon size={14} className="text-blue-400 shrink-0 mt-0.5" />
+                    <span className="text-slate-400 text-sm">{text}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
-        <div className="border-t border-white/10 py-3 text-center">
-          <p className="text-white/35 text-xs">© 2025 Madhav Institute of Technology &amp; Science, Gwalior. All rights reserved.</p>
+
+        <div className="border-t border-slate-800 py-5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-slate-600 text-xs">
+              © 2025 Madhav Institute of Technology &amp; Science, Gwalior. All rights reserved.
+            </p>
+            <p className="text-slate-700 text-xs">
+              Developed by <span className="text-slate-500 font-medium">Ajay Meena</span> · B.Tech CST
+            </p>
+          </div>
         </div>
       </footer>
-
-      {/* ── LOGIN MODAL ── */}
-      {modal === "login" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={e=>{if(e.target===e.currentTarget)setModal(null);}}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[340px] overflow-hidden">
-            <div className={`bg-gradient-to-r ${portal.color} px-5 py-3.5 flex items-center justify-between`}>
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center border border-white/30">
-                  <PIcon size={16} className="text-white"/>
-                </div>
-                <div>
-                  <p className="text-white font-bold text-sm">{portal.label}</p>
-                  <p className="text-white/60 text-xs">MITS Gwalior</p>
-                </div>
-              </div>
-              <button onClick={()=>setModal(null)} className="w-7 h-7 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white transition-colors">
-                <X size={13}/>
-              </button>
-            </div>
-            <div className="px-4 pt-3">
-              <div className="flex gap-0.5 bg-slate-100 rounded-xl p-0.5">
-                {PORTALS.map(p=>(
-                  <button key={p.role} onClick={()=>setPortal(p)}
-                    className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${portal.role===p.role?"bg-white shadow text-slate-800":"text-slate-400 hover:text-slate-600"}`}>
-                    {p.role.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="px-5 py-4">
-              <form onSubmit={handleLogin} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-widest">Email</label>
-                  <input type="email" placeholder="your@mits.ac.in"
-                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
-                    value={form.email} onChange={e=>setForm({...form,email:e.target.value})} required/>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-widest">Password</label>
-                  <div className="relative">
-                    <input type={showPass?"text":"password"} placeholder="••••••••"
-                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
-                      value={form.password} onChange={e=>setForm({...form,password:e.target.value})} required/>
-                    <button type="button" onClick={()=>setShowPass(s=>!s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5">
-                      {showPass?<EyeOff size={13}/>:<Eye size={13}/>}
-                    </button>
-                  </div>
-                </div>
-                <button type="submit" disabled={loading}
-                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r ${portal.color} text-white text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50`}>
-                  {loading?<><svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Signing in...</>:<><LogIn size={13}/>Sign In</>}
-                </button>
-              </form>
-              <p className="text-center text-xs text-slate-400 mt-3">
-                No account?{" "}
-                <button onClick={()=>setModal("register")} className="text-blue-600 font-bold hover:underline">Register</button>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── REGISTER MODAL ── */}
-      {modal === "register" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={e=>{if(e.target===e.currentTarget)setModal(null);}}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[340px] overflow-hidden">
-            <div className={`bg-gradient-to-r ${portal.color} px-5 py-3.5 flex items-center justify-between`}>
-              <div>
-                <p className="text-white font-bold text-sm">Create Account</p>
-                <p className="text-white/60 text-xs">Register as {portal.label}</p>
-              </div>
-              <button onClick={()=>setModal(null)} className="w-7 h-7 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white">
-                <X size={13}/>
-              </button>
-            </div>
-            <div className="px-5 py-4">
-              <form onSubmit={handleRegister} className="space-y-2.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-widest">Role</label>
-                  <select className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    value={form.role} onChange={e=>{setForm({...form,role:e.target.value});setPortal(PORTALS.find(p=>p.role===e.target.value)||PORTALS[0]);}}>
-                    {PORTALS.map(p=><option key={p.role} value={p.role}>{p.label}</option>)}
-                  </select>
-                </div>
-                {[["Full Name","name","text","Dr. Full Name"],["Email","email","email","your@mits.ac.in"],["Department","department","text","Dept. of CST"],["Password","password","password","Min 6 chars"]].map(([label,field,type,ph])=>(
-                  <div key={field}>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-widest">{label}</label>
-                    <input type={field==="password"?(showPass?"text":"password"):type} placeholder={ph}
-                      className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                      value={form[field]} onChange={e=>setForm({...form,[field]:e.target.value})} required={field!=="department"}/>
-                  </div>
-                ))}
-                <button type="submit" disabled={loading}
-                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r ${portal.color} text-white text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50 mt-1`}>
-                  {loading?<><svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Creating...</>:<><UserPlus size={13}/>Create Account</>}
-                </button>
-              </form>
-              <p className="text-center text-xs text-slate-400 mt-3">
-                Already have an account?{" "}
-                <button onClick={()=>setModal("login")} className="text-blue-600 font-bold hover:underline">Sign In</button>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

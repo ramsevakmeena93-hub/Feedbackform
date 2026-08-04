@@ -410,8 +410,8 @@ export default function HODDashboard() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Session</label>
                 <select className="input" value={sessionInfo.session}
                   onChange={e => setSessionInfo(s => ({ ...s, session: e.target.value }))}>
-                  <option value="aug-dec">August – December (Odd Semester)</option>
-                  <option value="jan-may">January – May (Even Semester)</option>
+                  <option value="jul-dec">July – December (Odd Semester)</option>
+                  <option value="jan-may">January – June (Even Semester)</option>
                 </select>
               </div>
               <div>
